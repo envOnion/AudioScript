@@ -53,12 +53,12 @@ fn spawn_main_thread_watchdog(app: &AppHandle) {
                 let gap = now.saturating_sub(MAIN_TICK_MS.load(Ordering::Relaxed));
                 if gap >= 5000 && now.saturating_sub(last_warn) >= 10_000 {
                     last_warn = now;
-                    tracing::warn!(gap_ms = gap, "主线程超过 {}ms 未处理任务", gap);
+                    tracing::warn!(gap_ms = gap, "Главный поток не обрабатывал задачи более {} мс", gap);
                 }
             }
         });
     if let Err(e) = spawned {
-        tracing::warn!("主线程看门狗启动失败：{e}");
+        tracing::warn!("Не удалось запустить наблюдение за главным потоком: {e}");
     }
 }
 
@@ -67,11 +67,9 @@ pub fn run() {
     let mut builder = tauri::Builder::default();
 
     builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-        tracing::info!("检测到第二次启动，唤回已有实例");
+        tracing::info!("Обнаружен повторный запуск. Открываем уже работающий экземпляр");
         lifecycle::show_main(app);
     }));
-
-    builder = builder.plugin(tauri_plugin_aptabase::Builder::new(telemetry::APP_KEY).build());
 
     #[cfg(target_os = "macos")]
     {
@@ -130,7 +128,7 @@ pub fn run() {
                     models::install::cleanup_stale(&cleanup_handle);
                 })
             {
-                tracing::warn!("无法启动模型临时目录清理线程：{e}");
+                tracing::warn!("Не удалось запустить очистку временных папок моделей: {e}");
             }
 
             let saved_prefs = prefs::load(&handle);
@@ -146,15 +144,15 @@ pub fn run() {
                 })),
             );
             if let Err(e) = overlay::init(&handle, saved_prefs.overlay, saved_prefs.overlay_geometry) {
-                tracing::error!("悬浮窗初始化失败：{e}");
+                tracing::error!("Не удалось инициализировать окно субтитров: {e}");
             }
 
             if let Err(e) = tray::init(&handle) {
-                tracing::error!("托盘初始化失败：{e}");
+                tracing::error!("Не удалось инициализировать трей: {e}");
             }
 
             if let Err(e) = shortcut::init(&handle) {
-                tracing::error!("全局热键初始化失败：{e}");
+                tracing::error!("Не удалось инициализировать глобальные горячие клавиши: {e}");
             }
 
             lifecycle::show_main(&handle);
@@ -173,7 +171,7 @@ pub fn run() {
                     }
                 });
 
-                tracing::info!("AUDIOSCRIPT_SMOKE_ROUTE 已设置，走真实命令路径启动");
+                tracing::info!("Задана переменная AUDIOSCRIPT_SMOKE_ROUTE. Проверка запускается через обычный маршрут команд");
 
                 for src in ["loopback", "mic"] {
                     match commands::route(
@@ -191,11 +189,11 @@ pub fn run() {
                                 source = src,
                                 count = arr.len(),
                                 names = ?names,
-                                "冒烟：设备枚举成功"
+                                "Проверка: список устройств получен"
                             );
                         }
                         Err(e) => {
-                            tracing::error!(source = src, "冒烟：设备枚举失败：{e}")
+                            tracing::error!(source = src, "Проверка: не удалось получить список устройств: {e}")
                         }
                     }
                 }
@@ -205,7 +203,7 @@ pub fn run() {
                     ("permission_status", serde_json::json!({})),
                     (
                         "open_privacy_settings",
-                        serde_json::json!({ "pane": "不存在的页" }),
+                        serde_json::json!({ "pane": "несуществующая-страница" }),
                     ),
                     ("prefs_get", serde_json::json!({})),
                     ("config_defaults", serde_json::json!({})),
@@ -227,12 +225,12 @@ pub fn run() {
                     ),
                     (
                         "shortcuts_set",
-                        serde_json::json!({ "id": "不存在的热键", "accelerator": "CmdOrControl+Shift+H" }),
+                        serde_json::json!({ "id": "несуществующая-горячая-клавиша", "accelerator": "CmdOrControl+Shift+H" }),
                     ),
                 ] {
                     match commands::route(&handle, cmd, &a) {
-                        Ok(_) => tracing::info!(cmd, "冒烟：命令成功"),
-                        Err(e) => tracing::error!(cmd, "冒烟：命令失败：{e}"),
+                        Ok(_) => tracing::info!(cmd, "Проверка: команда выполнена"),
+                        Err(e) => tracing::error!(cmd, "Проверка: ошибка команды: {e}"),
                     }
                 }
 
@@ -243,13 +241,13 @@ pub fn run() {
                     source_lang = %after.source_lang,
                     font_size = after.overlay.font_size,
                     endpoint_ms = after.endpoint.trailing_silence_ms,
-                    "冒烟：改 theme 之后的偏好（其余字段应与改之前一致）"
+                    "Проверка: настройки после изменения theme (остальные поля должны остаться прежними)"
                 );
 
                 match commands::route(&handle, "session_start", &args) {
-                    Ok(_) => tracing::info!("冒烟（真实命令路径）：session_start 成功"),
+                    Ok(_) => tracing::info!("Проверка обычного маршрута команд: session_start выполнена"),
                     Err(e) => {
-                        tracing::error!("冒烟（真实命令路径）：session_start 失败：{e}")
+                        tracing::error!("Проверка обычного маршрута команд: ошибка session_start: {e}")
                     }
                 }
             }
@@ -266,7 +264,7 @@ pub fn run() {
                 tracing::info!(
                     source = source.as_str(),
                     device = ?device,
-                    "AUDIOSCRIPT_AUTOSTART 已设置，自动开始转写"
+                    "Задана переменная AUDIOSCRIPT_AUTOSTART. Распознавание запускается автоматически"
                 );
                 match session::start(
                     &handle,
@@ -289,15 +287,15 @@ pub fn run() {
                     source,
                     device,
                 ) {
-                    Ok(()) => tracing::info!("自动开始转写：成功"),
-                    Err(e) => tracing::error!("自动开始转写失败：{e}"),
+                    Ok(()) => tracing::info!("Автоматический запуск распознавания выполнен"),
+                    Err(e) => tracing::error!("Не удалось автоматически запустить распознавание: {e}"),
                 }
             }
 
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
+        .expect("Не удалось собрать приложение Tauri")
         .run(|app, event| match &event {
             tauri::RunEvent::ExitRequested { api, .. } => {
                 if lifecycle::on_run_event(app, &event) {

@@ -1,17 +1,28 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "AudioScript 默认权限。两个窗口共用——它们都只调用我们自己的 dispatch。core:window:default 只含查询类方法（is-* / outer-size / available-monitors 等），拖动与缩放不在其中，必须单独授权：漏掉的表现是手柄画得出来、按下去毫无反应（startDragging 被权限系统拒绝）。",
-  "windows": ["main", "overlay"],
+  "description": "Разрешения главного окна и субтитров: события приложения, перемещение и изменение размера окна",
+  "windows": [
+    "main",
+    "overlay"
+  ],
   "permissions": [
     "core:default",
     {
       "identifier": "core:event:allow-listen",
       "allow": [
-        { "event": "transcript://*" },
-        { "event": "overlay://*" },
-        { "event": "models://*" },
-        { "event": "update://*" }
+        {
+          "event": "transcript://*"
+        },
+        {
+          "event": "overlay://*"
+        },
+        {
+          "event": "models://*"
+        },
+        {
+          "event": "update://*"
+        }
       ]
     },
     "core:window:allow-start-dragging",

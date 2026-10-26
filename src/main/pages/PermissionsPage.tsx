@@ -3,7 +3,7 @@ import { Page } from '@/ui/Page'
 
 export function PermissionsPage() {
   return (
-    <Page title="权限">
+    <Page title="Разрешения">
       <PermissionPanel />
     </Page>
   )

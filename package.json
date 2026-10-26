@@ -1,15 +1,15 @@
 {
   "name": "audioscript",
   "private": true,
-  "version": "0.2.10",
+  "version": "0.3.0",
   "type": "module",
-  "packageManager": "pnpm@10.29.2",
-  "description": "AudioScript 声稿 — 离线优先语音转写，带悬浮流式字幕窗",
+  "packageManager": "bun@1.4.4",
+  "description": "Офлайн-субтитры и потоковый перевод английский ↔ русский",
   "license": "MIT",
   "scripts": {
     "gen:types": "typeshare src-tauri --lang=typescript --output-file=src/shared/types.ts",
-    "dev": "pnpm gen:types && vite",
-    "build": "pnpm gen:types && vite build",
+    "dev": "vite",
+    "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --project tsconfig.app.json --noEmit",
     "lint": "biome check --write src/",
@@ -24,10 +24,9 @@
     "fetch:mt:big": "node scripts/fetch-mt-model.mjs --tier big --print-catalog",
     "verify:models": "node scripts/verify-model-catalog.mjs",
     "prepare": "node scripts/fetch-model.mjs",
-    "tauri": "tauri"
+    "tauri": "node scripts/tauri.mjs"
   },
   "dependencies": {
-    "@aptabase/tauri": "^0.7.0",
     "@heroicons/react": "^2.2.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.3",

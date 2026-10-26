@@ -4,7 +4,7 @@ import '@/shared/theme.css'
 import { App } from './App'
 
 const root = document.getElementById('root')
-if (!root) throw new Error('#root 未找到')
+if (!root) throw new Error('Элемент #root не найден')
 
 createRoot(root).render(
   <StrictMode>

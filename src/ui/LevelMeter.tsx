@@ -16,7 +16,7 @@ function levelRatio(value: number): number {
 
 function Dots({ dots, animated }: { dots: number; animated?: boolean }) {
   return (
-    <div className="flex items-center gap-1" role="img" aria-label="输入电平">
+    <div className="flex items-center gap-1" role="img" aria-label="Уровень входного сигнала">
       {SEGMENTS.map((seg) => (
         <span
           key={seg}

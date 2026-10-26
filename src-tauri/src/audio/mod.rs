@@ -63,16 +63,16 @@ impl AudioSourceKind {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AudioError {
-    #[error("未找到名为 {0} 的音频设备")]
+    #[error("Аудиоустройство с именем {0} не найдено")]
     DeviceNotFound(String),
 
-    #[error("打开采集失败：{0}")]
+    #[error("Не удалось открыть аудиозахват: {0}")]
     Open(String),
 
-    #[error("启动采集失败：{0}")]
+    #[error("Не удалось запустить аудиозахват: {0}")]
     Start(String),
 
-    #[error("设备枚举失败：{0}")]
+    #[error("Не удалось получить список устройств: {0}")]
     Enumerate(String),
 
     #[error("{message}")]
@@ -165,7 +165,9 @@ fn to_input_device(d: DeviceInfo) -> InputDevice {
 
 fn resolve_device_name(kind: AudioSourceKind, wanted: Option<&str>) -> String {
     let Ok(devices) = devices_for(kind) else {
-        return wanted.unwrap_or("(系统默认)").to_string();
+        return wanted
+            .unwrap_or("(системное устройство по умолчанию)")
+            .to_string();
     };
     let want = kind.to_flexaudio();
 
@@ -177,9 +179,11 @@ fn resolve_device_name(kind: AudioSourceKind, wanted: Option<&str>) -> String {
             .or_else(|| devices.iter().find(|d| d.source_kind == want)),
     };
 
-    found
-        .map(|d| d.name.clone())
-        .unwrap_or_else(|| wanted.unwrap_or("(系统默认)").to_string())
+    found.map(|d| d.name.clone()).unwrap_or_else(|| {
+        wanted
+            .unwrap_or("(системное устройство по умолчанию)")
+            .to_string()
+    })
 }
 
 pub fn start<S>(
@@ -211,7 +215,7 @@ where
         device = %device_name,
         native_rate,
         target_rate = TARGET_SAMPLE_RATE,
-        "采集已启动"
+        "Аудиозахват запущен"
     );
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -230,11 +234,8 @@ fn open_started(config: &StreamConfig) -> Result<flexaudio::Stream, AudioError> 
     match open_and_start(config) {
         Ok(stream) => Ok(stream),
         #[cfg(target_os = "windows")]
-        Err(e)
-            if config.exclude_self
-                && e.kind() == flexaudio::ErrorKind::UnsupportedOsVersion =>
-        {
-            tracing::warn!("当前 Windows 版本不支持进程回环，改为采集整设备音频");
+        Err(e) if config.exclude_self && e.kind() == flexaudio::ErrorKind::UnsupportedOsVersion => {
+            tracing::warn!("Эта версия Windows не поддерживает захват звука отдельного процесса. Захватывается весь звук устройства");
             let mut fallback = config.clone();
             fallback.exclude_self = false;
             open_and_start(&fallback).map_err(classify_open_error)
@@ -294,7 +295,7 @@ where
                                     .unwrap_or_else(|e| e.into_inner())
                                     .note_terminal(&e);
                             }
-                            tracing::error!("采集终结性错误：{e}");
+                            tracing::error!("Невосстановимая ошибка аудиозахвата: {e}");
                             break;
                         }
                         std::thread::sleep(POLL_IDLE);
@@ -303,16 +304,24 @@ where
             }
 
             stream.stop();
-            tracing::info!("采集工作线程退出");
+            tracing::info!("Поток аудиозахвата завершён");
         })
         .map_err(|e| AudioError::Start(e.to_string()))
 }
 
 fn classify_open_error(e: flexaudio::Error) -> AudioError {
     if let Some(permission) = e.permission() {
+        tracing::warn!(error = %e, "Система отказала в доступе к аудио");
+        let message = match permission {
+            flexaudio::Permission::Microphone =>
+                "Доступ к микрофону запрещён. Откройте системные настройки на странице «Разрешения» и разрешите AudioScript использовать микрофон.",
+            flexaudio::Permission::SystemAudio =>
+                "Доступ к записи системного звука запрещён. Откройте системные настройки на странице «Разрешения» и разрешите AudioScript записывать системный звук.",
+            _ => "Доступ к аудио запрещён. Предоставьте необходимые разрешения в системных настройках.",
+        };
         return AudioError::Permission {
             permission: permission.as_str(),
-            message: e.to_string(),
+            message: message.into(),
         };
     }
 
@@ -410,7 +419,7 @@ where
     let _ = thread.join();
 
     let acc = Arc::try_unwrap(acc)
-        .map_err(|_| AudioError::Open("检测累加器仍被占用".into()))?
+        .map_err(|_| AudioError::Open("Накопитель результатов проверки всё ещё занят".into()))?
         .into_inner()
         .unwrap_or_else(|e| e.into_inner());
 
@@ -466,8 +475,8 @@ mod tests {
             panic!("应归类为权限错误");
         };
         assert_eq!(permission, "microphone");
-        assert!(message.contains("Microphone"), "{message}");
-        assert!(!message.contains("System Audio Recording"), "{message}");
+        assert!(message.contains("микрофону"), "{message}");
+        assert!(!message.contains("записи системного звука"), "{message}");
     }
 
     #[test]
@@ -484,7 +493,7 @@ mod tests {
             panic!("应归类为权限错误");
         };
         assert_eq!(permission, "systemAudio");
-        assert!(message.contains("System Audio Recording"), "{message}");
+        assert!(message.contains("записи системного звука"), "{message}");
     }
 
     #[test]

@@ -12,7 +12,7 @@ export function ProgressBar({ value, label }: Props) {
   return (
     <div
       role="progressbar"
-      aria-label={label ?? '下载进度'}
+      aria-label={label ?? 'Ход загрузки'}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={indeterminate ? undefined : Math.round(clamped)}

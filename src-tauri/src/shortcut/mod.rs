@@ -65,7 +65,7 @@ pub fn bindings() -> Vec<Binding> {
     vec![
         Binding {
             id: "overlay.toggleMode",
-            label: "切换悬浮窗锁定 / 编辑",
+            label: "Закрепить / редактировать окно субтитров",
             default_accelerator: "CmdOrControl+Shift+L",
             action: |app| {
                 let current = app.state::<overlay::OverlayState>().mode();
@@ -74,17 +74,23 @@ pub fn bindings() -> Vec<Binding> {
                     OverlayMode::Edit => OverlayMode::Locked,
                 };
                 match overlay::set_mode(app, next) {
-                    Ok(m) => tracing::info!(mode = m.as_str(), "热键切换悬浮窗模式"),
+                    Ok(m) => tracing::info!(
+                        mode = m.as_str(),
+                        "Режим окна субтитров переключён горячей клавишей"
+                    ),
                     Err(e) => tracing::error!("{e}"),
                 }
             },
         },
         Binding {
             id: "overlay.toggleVisible",
-            label: "显示 / 隐藏悬浮窗",
+            label: "Показать / скрыть окно субтитров",
             default_accelerator: "CmdOrControl+Shift+H",
             action: |app| match overlay::toggle(app) {
-                Ok(visible) => tracing::info!(visible, "热键切换悬浮窗可见性"),
+                Ok(visible) => tracing::info!(
+                    visible,
+                    "Видимость окна субтитров переключена горячей клавишей"
+                ),
                 Err(e) => tracing::error!("{e}"),
             },
         },
@@ -146,20 +152,20 @@ pub fn list(app: &AppHandle) -> Vec<HotkeyInfo> {
 pub fn rebind(app: &AppHandle, id: &str, accelerator: &str) -> Result<Vec<HotkeyInfo>, String> {
     let accel = accelerator.trim();
     if accel.is_empty() {
-        return Err("加速键不能为空".into());
+        return Err("Сочетание клавиш не может быть пустым".into());
     }
 
     let bindings = bindings();
     let b = bindings
         .iter()
         .find(|b| b.id == id)
-        .ok_or_else(|| format!("未知的热键 id：{id}"))?;
+        .ok_or_else(|| format!("Неизвестный идентификатор горячей клавиши: {id}"))?;
 
     let old = accelerator_from(&prefs::load(app).shortcuts, b);
 
     accel
         .parse::<Shortcut>()
-        .map_err(|e| format!("加速键 {accel} 无法解析：{e}"))?;
+        .map_err(|e| format!("Не удалось распознать сочетание {accel}: {e}"))?;
 
     let gs = app.global_shortcut();
 
@@ -170,10 +176,10 @@ pub fn rebind(app: &AppHandle, id: &str, accelerator: &str) -> Result<Vec<Hotkey
                 action(app);
             }
         })
-        .map_err(|e| format!("键位 {accel} 注册失败（可能已被其他应用占用）：{e}"))?;
+        .map_err(|e| format!("Не удалось зарегистрировать сочетание {accel} (возможно, оно занято другим приложением): {e}"))?;
 
         if let Err(e) = gs.unregister(old.as_str()) {
-            tracing::warn!(old = %old, "旧热键注销失败，它可能仍然生效：{e}");
+            tracing::warn!(old = %old, "Не удалось отменить регистрацию прежнего сочетания; оно может оставаться активным: {e}");
         }
     }
 
@@ -186,7 +192,7 @@ pub fn rebind(app: &AppHandle, id: &str, accelerator: &str) -> Result<Vec<Hotkey
         }
     })?;
 
-    tracing::info!(id, old = %old, new = %accel, "热键已改绑");
+    tracing::info!(id, old = %old, new = %accel, "Сочетание клавиш изменено");
     Ok(list(app))
 }
 
@@ -210,12 +216,12 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
             });
 
         match result {
-            Ok(()) => tracing::info!(id, accelerator = %accel, "热键已注册"),
+            Ok(()) => tracing::info!(id, accelerator = %accel, "Сочетание клавиш зарегистрировано"),
             Err(e) => {
                 tracing::error!(
                     id,
                     accelerator = %accel,
-                    "热键注册失败（组合键可能已被其他应用占用）：{e}"
+                    "Не удалось зарегистрировать горячую клавишу (возможно, сочетание занято другим приложением): {e}"
                 );
                 state.push(ShortcutFailure {
                     id: id.to_string(),
@@ -230,7 +236,7 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
     if !failed.is_empty() {
         tracing::error!(
             count = failed.len(),
-            "有 {} 条全局热键注册失败，悬浮窗的逃生路径可能不完整",
+            "Не удалось зарегистрировать {} глобальных горячих клавиш. Часть способов управления окном субтитров может быть недоступна",
             failed.len()
         );
     }
@@ -252,7 +258,10 @@ mod tests {
 
     #[test]
     fn pretty_strips_the_key_prefix() {
-        assert!(!pretty("CmdOrControl+KeyL").contains("Key"), "不该露出内部写法");
+        assert!(
+            !pretty("CmdOrControl+KeyL").contains("Key"),
+            "不该露出内部写法"
+        );
     }
 
     #[test]

@@ -15,10 +15,9 @@ pub struct ExtractSpec<'a> {
 
 impl<'a> ExtractSpec<'a> {
     pub fn from_entry(entry: &'a CatalogEntry) -> Result<Self, ModelError> {
-        let archive = entry
-            .archive
-            .as_ref()
-            .ok_or_else(|| ModelError::Internal(format!("{} 没有归档信息", entry.id)))?;
+        let archive = entry.archive.as_ref().ok_or_else(|| {
+            ModelError::Internal(format!("У {} отсутствуют сведения об архиве", entry.id))
+        })?;
         Ok(Self {
             format: archive.format,
             roots: entry.archive_roots(),
@@ -86,7 +85,10 @@ pub fn extract_archive(
     let mut total = 0u64;
     let mut buffer = [0u8; IO_CHUNK];
 
-    for entry in tar.entries().map_err(|e| ModelError::Extract(e.to_string()))? {
+    for entry in tar
+        .entries()
+        .map_err(|e| ModelError::Extract(e.to_string()))?
+    {
         if cancel.load(Ordering::SeqCst) {
             return Err(ModelError::Cancelled);
         }
@@ -96,7 +98,7 @@ pub fn extract_archive(
         let entry_type = header.entry_type();
         if !entry_type.is_file() && !entry_type.is_dir() {
             return Err(ModelError::UnsafeArchive(format!(
-                "不支持的归档条目类型：{entry_type:?}"
+                "Неподдерживаемый тип записи архива: {entry_type:?}"
             )));
         }
         if entry_type.is_dir() {
@@ -109,7 +111,9 @@ pub fn extract_archive(
             .to_string_lossy()
             .into_owned();
         let Some(rel) = safe_rel_path(&path) else {
-            return Err(ModelError::UnsafeArchive(format!("不安全的路径：{path}")));
+            return Err(ModelError::UnsafeArchive(format!(
+                "Небезопасный путь: {path}"
+            )));
         };
         let Some(rel) = strip_root(&rel, &spec.roots) else {
             continue;
@@ -128,7 +132,7 @@ pub fn extract_archive(
         total = total.saturating_add(entry.size());
         if spec.max_bytes > 0 && total > spec.max_bytes {
             return Err(ModelError::UnsafeArchive(format!(
-                "解压后体积超过上限（{} 字节）",
+                "Распакованные данные превышают ограничение ({} байт)",
                 spec.max_bytes
             )));
         }
@@ -168,7 +172,9 @@ mod tests {
             header.set_size(data.len() as u64);
             header.set_mode(0o644);
             header.set_cksum();
-            builder.append_data(&mut header, name, Cursor::new(data)).unwrap();
+            builder
+                .append_data(&mut header, name, Cursor::new(data))
+                .unwrap();
         }
         builder.into_inner().unwrap().finish().unwrap()
     }

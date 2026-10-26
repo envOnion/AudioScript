@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "AudioScript",
-  "version": "0.2.10",
-  "identifier": "com.audioscript.desktop",
+  "version": "0.3.0",
+  "identifier": "io.github.envonion.audioscript",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
   },
   "app": {
     "macOSPrivateApi": true,
@@ -15,7 +15,7 @@
       {
         "label": "main",
         "url": "index.html",
-        "title": "AudioScript 声稿",
+        "title": "AudioScript",
         "width": 1100,
         "height": 720,
         "minWidth": 880,
@@ -24,7 +24,10 @@
         "decorations": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 18, "y": 18 }
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 18
+        }
       },
       {
         "label": "overlay",
@@ -51,8 +54,10 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": ["https://github.com/niyongsheng/AudioScript/releases/latest/download/latest.json"],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzMDAzQzYxRkYwRDYxMTkKUldRWllRMy9ZVHdBSXdRVmdCUjBZSmZ0dXpkZzNrUTJxVGRFbERCV0N3amRzS3RuYVN4bFdVZm8K"
+      "endpoints": [
+        "https://github.com/envOnion/AudioScript/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyRTdGRTczOTI5MzIzNjUKUldSbEk1T1NjLzduSW5xQ0NnUWkzait4UlJWRnZTNTBoYklQMW1MN1ZRNUM1aG44TDA1N2xVRkoK"
     }
   },
   "bundle": {
@@ -67,6 +72,23 @@
     ],
     "resources": {
       "assets/models": "models"
+    },
+    "shortDescription": "Офлайн-субтитры и перевод английский ↔ русский",
+    "longDescription": "AudioScript распознаёт системный звук и речь с микрофона и показывает английские и русские субтитры. Распознавание и перевод работают на устройстве.",
+    "category": "Utility",
+    "macOS": {
+      "minimumSystemVersion": "14.2"
+    },
+    "windows": {
+      "nsis": {
+        "languages": [
+          "Russian"
+        ],
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "ru-RU"
+      }
     }
   }
 }

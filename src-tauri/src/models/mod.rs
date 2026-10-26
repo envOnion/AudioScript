@@ -31,52 +31,52 @@ impl ModelKind {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ModelError {
-    #[error("未知模型：{0}")]
+    #[error("Неизвестная модель: {0}")]
     UnknownModel(String),
 
-    #[error("模型 {0} 暂不提供下载")]
+    #[error("Модель {0} пока недоступна для загрузки")]
     NotDownloadable(String),
 
-    #[error("模型 {0} 已安装，如需修复请先删除")]
+    #[error("Модель {0} уже установлена. Для переустановки сначала удалите её")]
     AlreadyInstalled(String),
 
-    #[error("内置模型随应用分发，不能删除")]
+    #[error("Встроенные модели входят в состав приложения и не могут быть удалены")]
     Bundled,
 
-    #[error("该模型当前被选中，请先切换到其他模型再删除")]
+    #[error("Перед удалением выберите другую модель")]
     Selected,
 
-    #[error("正在转写，请先停止再删除模型")]
+    #[error("Перед удалением модели остановите распознавание")]
     InUse,
 
-    #[error("已有模型下载任务进行中")]
+    #[error("Загрузка модели уже выполняется")]
     JobInProgress,
 
-    #[error("下载失败：{0}")]
+    #[error("Ошибка загрузки: {0}")]
     Network(String),
 
-    #[error("下载失败：HTTP {0}")]
+    #[error("Ошибка загрузки: HTTP {0}")]
     Http(u16),
 
-    #[error("校验失败：期望 {expected}，实际 {actual}")]
+    #[error("Ошибка проверки: ожидалось {expected}, получено {actual}")]
     Checksum { expected: String, actual: String },
 
-    #[error("归档内容不安全：{0}")]
+    #[error("Небезопасное содержимое архива: {0}")]
     UnsafeArchive(String),
 
-    #[error("解压失败：{0}")]
+    #[error("Ошибка распаковки: {0}")]
     Extract(String),
 
-    #[error("磁盘空间不足：需要约 {} MB，可用约 {} MB", .need / 1048576, .available / 1048576)]
+    #[error("Недостаточно места на диске: требуется около {} МБ, доступно около {} МБ", .need / 1048576, .available / 1048576)]
     DiskSpace { need: u64, available: u64 },
 
-    #[error("模型文件不完整：{0}")]
+    #[error("Отсутствуют файлы модели: {0}")]
     Incomplete(String),
 
-    #[error("文件操作失败：{0}")]
+    #[error("Ошибка файловой операции: {0}")]
     Io(String),
 
-    #[error("下载已取消")]
+    #[error("Загрузка отменена")]
     Cancelled,
 
     #[error("{0}")]

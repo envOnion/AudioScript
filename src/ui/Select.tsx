@@ -32,7 +32,7 @@ export function Select<T extends string>({ value, options, onChange, disabled, l
       {options.map((o) => (
         <option key={o.value} value={o.value} disabled={!!o.unavailableReason}>
           {o.label}
-          {o.unavailableReason ? `（${o.unavailableReason}）` : ''}
+          {o.unavailableReason ? ` (${o.unavailableReason})` : ''}
         </option>
       ))}
     </select>

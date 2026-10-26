@@ -57,15 +57,15 @@ pub fn request() -> Result<MicRequestResult, String> {
 
     if !has_usage_description("NSMicrophoneUsageDescription") {
         return Err(
-            "当前运行的不是打包后的 .app，Info.plist 里没有 NSMicrophoneUsageDescription，\
-             系统不会弹窗（此时请求授权会直接终止进程）。请用 `pnpm build:app` 构建后从 .app 启动。"
+            "Приложение запущено вне пакета .app: в Info.plist отсутствует NSMicrophoneUsageDescription. \
+             Система не покажет запрос, а попытка получить доступ завершит процесс. Соберите приложение командой `bun run build:app` и запустите пакет .app."
                 .into(),
         );
     }
 
     let _guard = REQUEST
         .try_lock()
-        .map_err(|_| "授权请求已在进行中，请等待系统弹窗".to_string())?;
+        .map_err(|_| "Запрос разрешения уже отправлен. Дождитесь системного диалога".to_string())?;
 
     let (tx, rx) = mpsc::channel::<bool>();
     let block = RcBlock::new(move |granted: Bool| {
@@ -97,6 +97,8 @@ pub fn request() -> Result<MicRequestResult, String> {
             state: status(),
             timed_out: true,
         }),
-        Err(mpsc::RecvTimeoutError::Disconnected) => Err("授权回调通道意外断开".into()),
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err("Канал ответа на запрос разрешения неожиданно закрыт".into())
+        }
     }
 }

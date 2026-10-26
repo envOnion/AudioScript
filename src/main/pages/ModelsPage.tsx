@@ -75,7 +75,7 @@ export function ModelsPage() {
       if (payload.phase === ModelPhase.Failed) {
         setFailure({
           modelId: payload.modelId,
-          message: payload.error ?? '下载失败',
+          message: payload.error ?? 'Ошибка загрузки',
         })
       }
       setJob(null)
@@ -143,16 +143,16 @@ export function ModelsPage() {
 
   if (!list) {
     return (
-      <Page title="模型">
+      <Page title="Модели">
         {loadError ? (
-          <Alert tone="error" title="读取模型列表失败">
+          <Alert tone="error" title="Не удалось прочитать список моделей">
             <p className="font-mono">{loadError}</p>
             <Button size="sm" className="mt-2" onClick={retry}>
-              重试
+              Повторить
             </Button>
           </Alert>
         ) : (
-          <p className="text-[var(--color-ink-2)] text-sm">读取中…</p>
+          <p className="text-[var(--color-ink-2)] text-sm">Загрузка…</p>
         )}
       </Page>
     )
@@ -162,42 +162,42 @@ export function ModelsPage() {
   const brokenSelected = [...list.asr, ...list.mt].find((m) => m.selected && !m.complete)
 
   return (
-    <Page title="模型">
+    <Page title="Модели">
       {loadError && (
-        <Alert tone="error" title="刷新模型列表失败">
+        <Alert tone="error" title="Не удалось обновить список моделей">
           <p className="font-mono">{loadError}</p>
           <Button size="sm" className="mt-2" onClick={retry}>
-            重试
+            Повторить
           </Button>
         </Alert>
       )}
 
       {brokenSelected && (
-        <Alert tone="error" title={`当前使用的「${brokenSelected.title}」文件缺失`}>
+        <Alert tone="error" title={`Нет файлов выбранной модели «${brokenSelected.title}»`}>
           {brokenSelected.bundled
-            ? '内置模型文件缺失，请重新安装应用。'
-            : '请重新下载该模型，或切换到其他已安装的模型。'}
+            ? 'Файлы встроенной модели отсутствуют. Переустановите приложение.'
+            : 'Загрузите модель заново или выберите другую установленную модель.'}
         </Alert>
       )}
 
       {capturing && (
-        <Alert tone="info" title="正在转写">
-          模型切换将在下次开始转写时生效；停止转写后才能删除模型。
+        <Alert tone="info" title="Идёт распознавание">
+          Новая модель будет использована при следующем запуске. Для удаления модели остановите запись.
         </Alert>
       )}
 
       {failure && (
-        <Alert tone="error" title={`${modelTitle(list, failure.modelId)} 下载失败`}>
+        <Alert tone="error" title={`${modelTitle(list, failure.modelId)} Ошибка загрузки`}>
           {failure.message}
           <button type="button" className="ml-2 underline underline-offset-2" onClick={() => setFailure(null)}>
-            知道了
+            Понятно
           </button>
         </Alert>
       )}
 
       {[
-        { title: '语音识别', items: list.asr },
-        { title: '机器翻译', items: list.mt },
+        { title: 'Распознавание речи', items: list.asr },
+        { title: 'Машинный перевод', items: list.mt },
       ].map((group) => (
         <SettingsGroup key={group.title} title={group.title}>
           {group.items.map((m) => (
@@ -219,10 +219,12 @@ export function ModelsPage() {
       ))}
 
       <p className="px-1 text-[var(--color-ink-2)] text-[0.7rem] leading-relaxed">
-        {connected ? '可选模型下载需联网。' : '无法解析模型存储目录，可选模型暂不可用。'}
+        {connected
+          ? 'Для загрузки дополнительных моделей нужен интернет.'
+          : 'Папка моделей недоступна. Дополнительные модели пока нельзя использовать.'}
         {connected && (
           <button type="button" className="ml-1 underline underline-offset-2" onClick={openModelsDir}>
-            打开模型目录
+            Открыть папку моделей
           </button>
         )}
       </p>
@@ -269,24 +271,28 @@ function ModelRow({
           {model.selected && (
             <span
               role="img"
-              aria-label="使用中"
-              title="使用中"
+              aria-label="Выбрана"
+              title="Выбрана"
               className="inline-flex items-center text-[var(--color-accent)]"
             >
               <Icon name="check" size={15} strokeWidth={2.25} />
             </span>
           )}
-          {model.bundled && <StatusBadge tone="muted">内置</StatusBadge>}
+          {model.bundled && <StatusBadge tone="muted">Встроенная</StatusBadge>}
           {!model.selected && statusBadge(model)}
         </span>
       }
       description={
         <span>
-          约 {formatBytes(model.installedBytes)}
-          {licenses.length > 0 && ` · ${licenses.join(' / ')}${needsAttribution ? '（需署名）' : ''}`}
-          {!model.bundled && model.installed && !model.complete && ' · 文件不完整，请重新下载'}
-          {model.bundled && !model.complete && ' · 内置文件缺失，请重新安装应用'}
-          {!model.bundled && !model.downloadable && ' · 模型包尚未发布'}
+          Около {formatBytes(model.installedBytes)}
+          {licenses.length > 0 &&
+            ` · ${licenses.join(' / ')}${needsAttribution ? ' (требуется указание авторства)' : ''}`}
+          {!model.bundled &&
+            model.installed &&
+            !model.complete &&
+            ' · Файлы повреждены или отсутствуют. Загрузите модель заново'}
+          {model.bundled && !model.complete && ' · Встроенные файлы отсутствуют. Переустановите приложение'}
+          {!model.bundled && !model.downloadable && ' · Модель ещё не опубликована'}
         </span>
       }
       control={
@@ -294,21 +300,21 @@ function ModelRow({
           {activeJob ? (
             <>
               <div className="flex flex-col items-end gap-1">
-                <ProgressBar value={activeJob.percent ?? null} label={`${model.title} 下载进度`} />
+                <ProgressBar value={activeJob.percent ?? null} label={`${model.title} Ход загрузки`} />
                 <span className="font-mono text-[0.65rem] text-[var(--color-ink-2)]">
                   {phaseLabel(activeJob.phase)}
                   {activeJob.percent != null && ` ${Math.round(activeJob.percent)}%`}
                 </span>
               </div>
               <Button size="sm" variant="ghost" onClick={onCancel}>
-                取消
+                Отмена
               </Button>
             </>
           ) : (
             <>
               {model.selected ? null : model.installed && model.complete ? (
                 <Button size="sm" onClick={onSelect} disabled={busy}>
-                  使用
+                  Выбрать
                 </Button>
               ) : model.downloadable ? (
                 <Button
@@ -318,7 +324,7 @@ function ModelRow({
                   onClick={onDownload}
                   disabled={busy || job !== null}
                 >
-                  {model.installed ? '重新下载' : '下载'}
+                  {model.installed ? 'Загрузить заново' : 'Загрузить'}
                 </Button>
               ) : null}
 
@@ -326,15 +332,15 @@ function ModelRow({
                 (confirmRemove ? (
                   <>
                     <Button size="sm" variant="danger" onClick={onRemove} disabled={busy}>
-                      确认删除
+                      Подтвердить удаление
                     </Button>
                     <Button size="sm" variant="ghost" onClick={onCancelRemove}>
-                      取消
+                      Отмена
                     </Button>
                   </>
                 ) : (
                   <Button size="sm" variant="ghost" onClick={onRemove} disabled={busy}>
-                    删除
+                    Удалить
                   </Button>
                 ))}
             </>
@@ -346,29 +352,29 @@ function ModelRow({
 }
 
 function statusBadge(model: ModelStatus) {
-  if (model.complete) return <StatusBadge tone="ok">{model.bundled ? '内置' : '已下载'}</StatusBadge>
-  if (model.bundled) return <StatusBadge tone="danger">内置文件缺失</StatusBadge>
-  if (model.installed) return <StatusBadge tone="danger">文件不完整</StatusBadge>
-  if (model.downloadable) return <StatusBadge tone="warn">未安装</StatusBadge>
-  return <StatusBadge tone="muted">资源尚未发布</StatusBadge>
+  if (model.complete) return <StatusBadge tone="ok">{model.bundled ? 'Встроенная' : 'Загружена'}</StatusBadge>
+  if (model.bundled) return <StatusBadge tone="danger">Нет встроенных файлов</StatusBadge>
+  if (model.installed) return <StatusBadge tone="danger">Неполные файлы</StatusBadge>
+  if (model.downloadable) return <StatusBadge tone="warn">Не установлена</StatusBadge>
+  return <StatusBadge tone="muted">Ещё не опубликована</StatusBadge>
 }
 
 function phaseLabel(phase: ModelPhase): string {
   switch (phase) {
     case ModelPhase.Downloading:
-      return '下载中'
+      return 'Загрузка'
     case ModelPhase.Verifying:
-      return '校验中'
+      return 'Проверка'
     case ModelPhase.Extracting:
-      return '解压中'
+      return 'Распаковка'
     case ModelPhase.Validating:
-      return '校验文件'
+      return 'Проверка файлов'
     case ModelPhase.Done:
-      return '完成'
+      return 'Готово'
     case ModelPhase.Cancelled:
-      return '已取消'
+      return 'Отменено'
     case ModelPhase.Failed:
-      return '失败'
+      return 'Ошибка'
   }
 }
 
@@ -379,7 +385,7 @@ function modelTitle(list: ModelsList, id: string): string {
 function formatBytes(bytes: number): string {
   if (!bytes) return '—'
   const mb = bytes / (1024 * 1024)
-  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
-  if (mb >= 10) return `${Math.round(mb)} MB`
-  return `${mb.toFixed(1)} MB`
+  if (mb >= 1024) return `${(mb / 1024).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} ГБ`
+  if (mb >= 10) return `${Math.round(mb).toLocaleString('ru-RU')} МБ`
+  return `${mb.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} МБ`
 }

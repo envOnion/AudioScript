@@ -19,12 +19,12 @@ import { SettingsGroup, SettingsRow } from '@/ui/Settings'
 import { StatusBadge } from '@/ui/StatusBadge'
 
 const MIC_TEXT: Record<MicPermission, string> = {
-  granted: '已授权',
-  denied: '已拒绝',
-  restricted: '已受限',
-  notDetermined: '未授权',
-  notApplicable: '不适用',
-  unknown: '未知',
+  granted: 'Разрешено',
+  denied: 'Запрещено',
+  restricted: 'Ограничено',
+  notDetermined: 'Нет разрешения',
+  notApplicable: 'Не требуется',
+  unknown: 'Неизвестно',
 }
 
 const MIC_TONE: Record<MicPermission, 'ok' | 'warn' | 'danger' | 'muted'> = {
@@ -37,12 +37,12 @@ const MIC_TONE: Record<MicPermission, 'ok' | 'warn' | 'danger' | 'muted'> = {
 }
 
 const PROBE_TEXT: Record<SystemAudioVerdict, string> = {
-  audible: '可用',
-  silentWhilePlaying: '未授权',
-  tapRejected: '已拒绝',
-  noAudioPlaying: '未检测',
-  unsupportedOs: '系统版本过低',
-  inconclusive: '未知',
+  audible: 'Доступно',
+  silentWhilePlaying: 'Нет разрешения',
+  tapRejected: 'Запрещено',
+  noAudioPlaying: 'Не проверено',
+  unsupportedOs: 'Устаревшая ОС',
+  inconclusive: 'Неизвестно',
 }
 
 const PROBE_TONE: Record<SystemAudioVerdict, 'ok' | 'warn' | 'danger' | 'muted'> = {
@@ -87,7 +87,7 @@ export function PermissionPanel() {
     try {
       const result = await permissionRequestMic()
       if (result.timedOut) {
-        setNote('等待系统弹窗超时。弹窗可能仍停留在屏幕上，确认后请重新检测。')
+        setNote('Время ожидания системного запроса истекло. Если он ещё открыт, ответьте на него и повторите проверку.')
       }
       await refreshPermission()
       if (result.state === MicPermission.Granted) await refreshDevices()
@@ -109,30 +109,33 @@ export function PermissionPanel() {
   return (
     <div className="space-y-3">
       {failure && (
-        <Alert tone="error" title="操作失败">
+        <Alert tone="error" title="Не удалось выполнить действие">
           <p className="font-mono text-[0.95em]">{failure}</p>
         </Alert>
       )}
       {note && <Alert tone="info">{note}</Alert>}
 
-      <SettingsGroup title="权限" footer="音频只在本机处理，不会上传；重建应用后系统可能要求重新授权。">
+      <SettingsGroup
+        title="Разрешения"
+        footer="Звук обрабатывается на устройстве и не отправляется в сеть. После переустановки разрешения могут потребоваться снова."
+      >
         <SettingsRow
           icon="waveform"
-          title="麦克风"
+          title="Микрофон"
           description={micDescription(mic, promptable)}
           control={
             <div className="flex items-center gap-1.5">
               <StatusBadge tone={MIC_TONE[mic]}>{MIC_TEXT[mic]}</StatusBadge>
               {mic === MicPermission.NotDetermined && promptable && (
                 <Button size="sm" pending={requesting} onClick={() => void askMic()}>
-                  请求权限
+                  Запросить доступ
                 </Button>
               )}
               {(mic === MicPermission.Denied ||
                 mic === MicPermission.Restricted ||
                 (mic === MicPermission.NotDetermined && !promptable)) && (
                 <Button size="sm" onClick={() => void open('microphone')}>
-                  打开设置
+                  Открыть настройки
                 </Button>
               )}
             </div>
@@ -141,24 +144,24 @@ export function PermissionPanel() {
 
         <SettingsRow
           icon="speaker"
-          title="系统声音录制"
+          title="Запись системного звука"
           description={
             isWindows ? (
-              'Windows 暂不提供系统声音检测；转写时的系统声音采集仍然可用。'
+              'В Windows проверка системного звука пока недоступна. Запись системного звука работает.'
             ) : (
               <>
-                {probing ? '正在检测系统声音，请保持播放。' : probeDescription(probe)}
+                {probing ? 'Проверка системного звука. Не останавливайте воспроизведение.' : probeDescription(probe)}
                 {probing && (
                   <span className="mt-1 flex items-center gap-2">
                     <LevelMeter active />
-                    <span className="font-mono">实时电平</span>
+                    <span className="font-mono">Уровень сигнала</span>
                   </span>
                 )}
                 {!probing && probe && (
                   <span className="mt-1 flex items-center gap-2">
                     <LevelBars level={probe.peak} />
                     <span className="font-mono">
-                      峰值 {formatDbfs(probe.peak)} · 均值 {formatDbfs(probe.rms)}
+                      Пик {formatDbfs(probe.peak)} · Среднее {formatDbfs(probe.rms)}
                     </span>
                   </span>
                 )}
@@ -167,20 +170,20 @@ export function PermissionPanel() {
           }
           control={
             isWindows ? (
-              <StatusBadge tone="muted">不可用</StatusBadge>
+              <StatusBadge tone="muted">Недоступно</StatusBadge>
             ) : (
               <div className="flex items-center gap-1.5">
                 <StatusBadge tone={probe ? PROBE_TONE[probe.verdict] : 'muted'}>
-                  {probe ? PROBE_TEXT[probe.verdict] : '未检测'}
+                  {probe ? PROBE_TEXT[probe.verdict] : 'Не проверено'}
                 </StatusBadge>
                 {(probe?.verdict === SystemAudioVerdict.SilentWhilePlaying ||
                   probe?.verdict === SystemAudioVerdict.TapRejected) && (
                   <Button size="sm" onClick={() => void open('systemAudio')}>
-                    打开设置
+                    Открыть настройки
                   </Button>
                 )}
                 <Button size="sm" pending={probing} disabled={capturing || probing} onClick={() => void runProbe()}>
-                  检测
+                  Проверить
                 </Button>
               </div>
             )
@@ -192,38 +195,38 @@ export function PermissionPanel() {
 }
 
 function micDescription(mic: MicPermission, promptable: boolean): string {
-  if (mic === MicPermission.Granted) return '麦克风音源所需。'
+  if (mic === MicPermission.Granted) return 'Нужен для записи с микрофона.'
   if (mic === MicPermission.Denied || mic === MicPermission.Restricted) {
-    return '系统不会再弹窗，需要到系统设置里手动打开。'
+    return 'Включите доступ вручную в настройках системы: повторного запроса не будет.'
   }
   if (mic === MicPermission.NotDetermined && !promptable) {
-    return '当前不是打包后的 .app，系统不会弹窗，也无法申请。请用 pnpm build:app 构建后从 .app 启动。'
+    return 'Запустите установленное приложение AudioScript, чтобы запросить доступ к микрофону.'
   }
-  if (mic === MicPermission.NotDetermined) return '未授权时，macOS 不会给出设备列表。'
-  return '无法读取麦克风授权状态。'
+  if (mic === MicPermission.NotDetermined) return 'Без доступа к микрофону macOS может скрывать список устройств.'
+  return 'Не удалось проверить доступ к микрофону.'
 }
 
 function formatDbfs(value: number): string {
-  if (value <= 0) return '静音'
+  if (value <= 0) return 'Тишина'
   const db = 20 * Math.log10(value)
   if (db <= -60) return '< -60 dBFS'
   return `${Math.round(db)} dBFS`
 }
 
 function probeDescription(probe: SystemAudioProbe | null): string {
-  if (!probe) return '先播放一段音频，再点「检测」。'
+  if (!probe) return 'Включите воспроизведение звука и нажмите «Проверить».'
   switch (probe.verdict) {
     case SystemAudioVerdict.Audible:
-      return '采集到非零音频，权限正常。'
+      return 'Звук поступает. Доступ разрешён.'
     case SystemAudioVerdict.SilentWhilePlaying:
-      return '系统正在播放声音，但采集到的全是数字静音——这是权限被拒的典型表现。'
+      return 'Воспроизведение идёт, но приложение получает тишину. Обычно это означает, что доступ запрещён.'
     case SystemAudioVerdict.TapRejected:
-      return '系统明确拒绝了系统音频采集。'
+      return 'Система запретила запись системного звука.'
     case SystemAudioVerdict.NoAudioPlaying:
-      return '没有检测到系统在播放声音，请先播放音频再检测。'
+      return 'Звук не воспроизводится. Включите его и повторите проверку.'
     case SystemAudioVerdict.UnsupportedOs:
-      return '需要 macOS 14.4 或更高版本。'
+      return 'Требуется macOS 14.4 или новее.'
     case SystemAudioVerdict.Inconclusive:
-      return probe.detail ?? '无法判定，请重试。'
+      return probe.detail ?? 'Не удалось определить результат. Повторите попытку.'
   }
 }

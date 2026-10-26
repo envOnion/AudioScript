@@ -26,7 +26,6 @@ import {
   SystemAudioVerdict,
   Theme,
   TranslateEngine,
-  ZhScript,
 } from './types'
 
 export type {
@@ -41,7 +40,7 @@ export type {
   PrefsPatch,
   SystemAudioProbe,
 }
-export { AudioSourceKind, MicPermission, ModelPhase, SystemAudioVerdict, Theme, TranslateEngine, ZhScript }
+export { AudioSourceKind, MicPermission, ModelPhase, SystemAudioVerdict, Theme, TranslateEngine }
 
 export async function call<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>('dispatch', { name, args })
@@ -112,13 +111,12 @@ export function sessionStart(
   device?: string,
   translate: TranslateEngine = TranslateEngine.LocalNmt,
   sourceLang = 'en',
-  zhScript: ZhScript = ZhScript.Simplified,
   source: AudioSourceKind = AudioSourceKind.Loopback,
 ): Promise<TaskStatus> {
   return call<TaskStatus>('session_start', {
     device: device ?? null,
     source,
-    config: { translate: { engine: translate, sourceLang, zhScript } },
+    config: { translate: { engine: translate, sourceLang } },
   })
 }
 
@@ -145,7 +143,11 @@ export function configDefaults(): Promise<ConfigDefaults> {
 const MODELS_TIMEOUT_MS = 10_000
 
 export function modelsList(): Promise<ModelsList> {
-  return withTimeout(call<ModelsList>('models_list'), MODELS_TIMEOUT_MS, '读取模型列表超时，请重试')
+  return withTimeout(
+    call<ModelsList>('models_list'),
+    MODELS_TIMEOUT_MS,
+    'Время загрузки списка моделей истекло. Повторите попытку',
+  )
 }
 
 export function modelDownload(modelId: string): Promise<{ jobId: string }> {

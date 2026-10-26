@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
-use crate::config::{MAX_OVERLAY_HEIGHT, MIN_OVERLAY_HEIGHT, OverlayConfig, OverlayMode};
+use crate::config::{OverlayConfig, OverlayMode, MAX_OVERLAY_HEIGHT, MIN_OVERLAY_HEIGHT};
 
 pub const LABEL: &str = "overlay";
 
@@ -91,7 +91,7 @@ impl Frame {
 
         app.get_webview_window(LABEL)
             .map(|w| Self::Window(Box::new(w)))
-            .ok_or_else(|| format!("悬浮窗（label={LABEL}）不存在"))
+            .ok_or_else(|| format!("Окно субтитров (label={LABEL}) не существует"))
     }
 
     fn show(&self) -> Result<(), String> {
@@ -101,7 +101,9 @@ impl Frame {
                 p.show();
                 Ok(())
             }
-            Self::Window(w) => w.show().map_err(|e| format!("显示悬浮窗失败：{e}")),
+            Self::Window(w) => w
+                .show()
+                .map_err(|e| format!("Не удалось показать окно субтитров: {e}")),
         }
     }
 
@@ -112,7 +114,9 @@ impl Frame {
                 p.hide();
                 Ok(())
             }
-            Self::Window(w) => w.hide().map_err(|e| format!("隐藏悬浮窗失败：{e}")),
+            Self::Window(w) => w
+                .hide()
+                .map_err(|e| format!("Не удалось скрыть окно субтитров: {e}")),
         }
     }
 
@@ -133,7 +137,7 @@ impl Frame {
             }
             Self::Window(w) => w
                 .set_ignore_cursor_events(on)
-                .map_err(|e| format!("设置鼠标穿透失败：{e}")),
+                .map_err(|e| format!("Не удалось включить пропуск нажатий мыши: {e}")),
         }
     }
 
@@ -174,17 +178,17 @@ pub(crate) fn set_geometry(
     app: &AppHandle,
     g: &crate::config::WindowGeometry,
 ) -> Result<(), String> {
-    let w = window(app).ok_or("悬浮窗底层窗口不可用")?;
+    let w = window(app).ok_or("Системное окно субтитров недоступно")?;
     w.set_size(tauri::LogicalSize::new(
         g.size.width as f64,
         g.size.height as f64,
     ))
-    .map_err(|e| format!("设置悬浮窗尺寸失败：{e}"))?;
+    .map_err(|e| format!("Не удалось изменить размер окна субтитров: {e}"))?;
     w.set_position(tauri::LogicalPosition::new(
         g.position.x as f64,
         g.position.y as f64,
     ))
-    .map_err(|e| format!("设置悬浮窗位置失败：{e}"))?;
+    .map_err(|e| format!("Не удалось изменить положение окна субтитров: {e}"))?;
     Ok(())
 }
 
@@ -215,7 +219,7 @@ fn set_enable(app: &AppHandle, enable: bool) {
     let state = app.state::<OverlayState>();
     state.set_enable(enable);
     if let Err(e) = crate::prefs::update(app, |p| p.overlay.enable = enable) {
-        tracing::error!("悬浮窗可见性保存失败：{e}（重启后会回到上次落盘的状态）");
+        tracing::error!("Не удалось сохранить видимость окна субтитров: {e}. После перезапуска восстановится последнее сохранённое состояние");
     }
     crate::tray::sync_visibility(app, enable);
     broadcast(app, &state);
@@ -227,7 +231,9 @@ pub fn is_visible(app: &AppHandle) -> bool {
 
 fn broadcast_visibility(app: &AppHandle, visible: bool) {
     if let Err(e) = app.emit(EVENT_OVERLAY_VISIBILITY, visible) {
-        tracing::debug!("广播悬浮窗可见性失败（可能没有窗口在监听）：{e}");
+        tracing::debug!(
+            "Не удалось передать видимость окна субтитров (возможно, нет активных окон): {e}"
+        );
     }
 }
 
@@ -253,7 +259,7 @@ fn apply_mode(app: &AppHandle, mode: OverlayMode) -> Result<(), String> {
 pub fn set_mode(app: &AppHandle, mode: OverlayMode) -> Result<OverlayMode, String> {
     apply_mode(app, mode)?;
     if let Err(e) = crate::prefs::update(app, |p| p.overlay.mode = mode) {
-        tracing::error!("悬浮窗交互模式保存失败：{e}（重启后会回到上次落盘的模式）");
+        tracing::error!("Не удалось сохранить режим окна субтитров: {e}. После перезапуска восстановится последний сохранённый режим");
     }
     crate::tray::sync_mode(app, mode);
     broadcast(app, &app.state::<OverlayState>());
@@ -276,7 +282,7 @@ pub fn set_config(app: &AppHandle, cfg: OverlayConfig) -> Result<OverlayConfig, 
     #[cfg(target_os = "macos")]
     if !cfg.always_on_top {
         tracing::warn!(
-            "always_on_top=false 在 macOS 上不被采纳：跨全屏置顶依赖强制的 NSScreenSaverWindowLevel"
+            "Параметр always_on_top=false не применяется в macOS: показ поверх полноэкранных приложений требует NSScreenSaverWindowLevel"
         );
     }
 
@@ -286,7 +292,9 @@ pub fn set_config(app: &AppHandle, cfg: OverlayConfig) -> Result<OverlayConfig, 
         fit_height_to_lines(app, &cfg);
     }
     if let Err(e) = crate::prefs::update(app, |p| p.overlay = cfg.clone()) {
-        tracing::error!("悬浮窗配置保存失败，本次调整不会被记住：{e}");
+        tracing::error!(
+            "Не удалось сохранить настройки окна субтитров. Изменения будут потеряны: {e}"
+        );
     }
     broadcast(app, &state);
     Ok(cfg)
@@ -304,7 +312,7 @@ fn fit_height_to_lines(app: &AppHandle, cfg: &OverlayConfig) {
         return;
     };
     let Some(g) = geometry(app) else {
-        tracing::warn!("读取悬浮窗尺寸失败，跳过按行数调整高度");
+        tracing::warn!("Не удалось прочитать размер окна субтитров. Высота не будет подстроена под число строк");
         return;
     };
 
@@ -337,7 +345,7 @@ fn fit_height_to_lines(app: &AppHandle, cfg: &OverlayConfig) {
         let y = g.position.y + g.size.height as i32 - height as i32;
         if let Err(e) = win.set_position(tauri::LogicalPosition::new(g.position.x as f64, y as f64))
         {
-            tracing::warn!("调整悬浮窗位置失败：{e}");
+            tracing::warn!("Не удалось изменить положение окна субтитров: {e}");
         }
     }
     match win.set_size(tauri::LogicalSize::new(g.size.width as f64, height as f64)) {
@@ -345,15 +353,19 @@ fn fit_height_to_lines(app: &AppHandle, cfg: &OverlayConfig) {
             font_size = cfg.font_size,
             max_lines = cfg.max_lines,
             height,
-            "悬浮窗高度已按设置调整"
+            "Высота окна субтитров изменена согласно настройкам"
         ),
-        Err(e) => tracing::warn!("按行数调整悬浮窗高度失败：{e}"),
+        Err(e) => {
+            tracing::warn!("Не удалось подстроить высоту окна субтитров под число строк: {e}")
+        }
     }
 }
 
 fn broadcast(app: &AppHandle, state: &OverlayState) {
     if let Err(e) = app.emit(EVENT_OVERLAY_STATE, state.config()) {
-        tracing::debug!("广播悬浮窗状态失败（可能没有窗口在监听）：{e}");
+        tracing::debug!(
+            "Не удалось передать состояние окна субтитров (возможно, нет активных окон): {e}"
+        );
     }
 }
 
@@ -390,12 +402,12 @@ pub fn init(
         font_color = %applied.font_color,
         bg_color = %applied.bg_color,
         mode = applied.mode.as_str(),
-        "悬浮窗外观已应用"
+        "Оформление окна субтитров применено"
     );
 
     if applied.enable {
         if let Err(e) = frame.show() {
-            tracing::error!("悬浮窗启动显示失败：{e}（可在悬浮窗页手动显示）");
+            tracing::error!("Не удалось показать окно субтитров при запуске: {e}. Его можно открыть на странице «Субтитры»");
         }
     }
 
@@ -411,7 +423,9 @@ pub fn on_page_loaded(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
         let Some(window) = app.get_webview_window(LABEL) else {
-            tracing::error!("page-load 回调里找不到悬浮窗，无法换类");
+            tracing::error!(
+                "В обработчике page-load окно субтитров не найдено. Невозможно изменить его класс"
+            );
             return;
         };
 
@@ -420,18 +434,18 @@ pub fn on_page_loaded(app: &AppHandle) {
         if let Err(e) =
             window.run_on_main_thread(move || match panel::convert(&window_for_convert) {
                 Ok(_) => {
-                    tracing::info!("悬浮窗已换类为 NSPanel（跨全屏的前提）");
+                    tracing::info!("Окно субтитров преобразовано в NSPanel для показа поверх полноэкранных приложений");
                     if let Ok(frame) = Frame::get(&handle) {
                         apply_fullscreen_overlay(&handle, &frame);
                     }
                 }
                 Err(e) => tracing::error!(
-                    "悬浮窗换类失败：{e}\n\
-                 → 后果：其他应用全屏时悬浮窗不可见（看视频读字幕的主场景会失效）"
+                    "Не удалось изменить класс окна субтитров: {e}\n\
+                 → Окно субтитров не будет видно поверх полноэкранных приложений, в том числе при просмотре видео"
                 ),
             })
         {
-            tracing::error!("无法投递换类任务到主线程：{e}");
+            tracing::error!("Не удалось передать изменение класса окна в главный поток: {e}");
         }
     }
 
@@ -445,7 +459,9 @@ fn apply_fullscreen_overlay(app: &AppHandle, frame: &Frame) {
     #[cfg(target_os = "macos")]
     {
         let Frame::Panel(p) = frame else {
-            tracing::debug!("悬浮窗尚未换类，跳过全屏属性设置");
+            tracing::debug!(
+                "Класс окна субтитров ещё не изменён. Применение полноэкранных свойств пропущено"
+            );
             return;
         };
 
@@ -454,11 +470,13 @@ fn apply_fullscreen_overlay(app: &AppHandle, frame: &Frame) {
         if let Err(e) = app.run_on_main_thread(move || {
             native::macos::apply_overlay_panel_attributes(&panel);
             match debug_state(&handle) {
-                Ok(s) => tracing::info!(state = %s, "悬浮窗原生属性已应用"),
-                Err(e) => tracing::warn!("属性已设置但状态回读失败：{e}"),
+                Ok(s) => tracing::info!(state = %s, "Системные свойства окна субтитров применены"),
+                Err(e) => tracing::warn!(
+                    "Свойства установлены, но не удалось прочитать их состояние: {e}"
+                ),
             }
         }) {
-            tracing::error!("无法投递原生属性设置到主线程：{e}");
+            tracing::error!("Не удалось передать установку системных свойств в главный поток: {e}");
         }
     }
 

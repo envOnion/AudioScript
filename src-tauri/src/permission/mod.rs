@@ -92,7 +92,7 @@ pub fn request_mic() -> Result<MicRequestResult, String> {
 pub fn probe_system_audio(app: &AppHandle) -> SystemAudioProbe {
     let _guard = match PROBING.try_lock() {
         Ok(g) => g,
-        Err(_) => return SystemAudioProbe::inconclusive(None, "检测已在进行中"),
+        Err(_) => return SystemAudioProbe::inconclusive(None, "Проверка уже выполняется"),
     };
 
     let active = match audio::any_output_active() {
@@ -106,7 +106,7 @@ pub fn probe_system_audio(app: &AppHandle) -> SystemAudioProbe {
                         peak: 0.0,
                         samples: 0,
                         active_processes: None,
-                        detail: Some(msg.clone()),
+                        detail: Some("Эта версия операционной системы не поддерживает захват системного звука.".into()),
                     };
                 }
             }
@@ -123,7 +123,7 @@ pub fn probe_system_audio(app: &AppHandle) -> SystemAudioProbe {
                 let prompt_swallowed_the_window =
                     p.samples == 0 && attempts < 2 && audio_capture_promptable();
                 if prompt_swallowed_the_window {
-                    tracing::info!("首次创建 tap 可能刚触发系统授权弹窗，重测一次");
+                    tracing::info!("При создании аудиозахвата мог появиться системный запрос разрешения. Повторяем проверку");
                     continue;
                 }
                 break p;
@@ -160,22 +160,24 @@ fn emit_level(app: &AppHandle, chunk: &[f32]) {
     }
     let mean_sq = chunk.iter().map(|s| (*s as f64) * (*s as f64)).sum::<f64>() / chunk.len() as f64;
     if let Err(e) = app.emit(crate::session::EVENT_LEVEL, mean_sq.sqrt()) {
-        tracing::debug!("广播检测电平失败（可能没有窗口在监听）：{e}");
+        tracing::debug!(
+            "Не удалось передать уровень звука при проверке (возможно, нет активных окон): {e}"
+        );
     }
 }
 
 fn inconclusive_reason(samples: u64, promptable: bool) -> String {
     if samples > 0 {
-        return "收到了音频帧，但没有任何进程在输出 I/O。请先播放一段音频再检测。".to_string();
+        return "Аудиокадры поступают, но приложения не воспроизводят звук. Включите воспроизведение и повторите проверку.".to_string();
     }
     if promptable {
-        "整个检测窗口没有收到任何音频帧，通常意味着系统授权弹窗还停在屏幕上没被处理。\
-         请允许后再点一次「检测」。"
+        "За время проверки не поступило ни одного аудиокадра. Возможно, системный запрос разрешения всё ещё ожидает ответа. \
+         Предоставьте доступ и снова нажмите «Проверить»."
             .to_string()
     } else {
-        "整个检测窗口没有收到任何音频帧。当前运行的不是打包后的 .app\
-         （Info.plist 里没有 NSAudioCaptureUsageDescription），系统既不会弹窗也不授权——\
-         请用 `pnpm build:app` 构建后从 .app 启动。"
+        "За время проверки не поступило ни одного аудиокадра. Приложение запущено вне пакета .app \
+         (в Info.plist отсутствует NSAudioCaptureUsageDescription), поэтому система не запрашивает и не предоставляет доступ. \
+         Соберите приложение командой `bun run build:app` и запустите пакет .app."
             .to_string()
     }
 }
@@ -352,12 +354,12 @@ mod tests {
 
     #[test]
     fn zero_frames_with_a_usage_description_points_at_the_prompt() {
-        assert!(inconclusive_reason(0, true).contains("授权弹窗"));
+        assert!(inconclusive_reason(0, true).contains("запрос разрешения"));
     }
 
     #[test]
     fn frames_but_no_output_points_at_playback() {
-        assert!(inconclusive_reason(88_000, true).contains("播放"));
-        assert!(inconclusive_reason(88_000, false).contains("播放"));
+        assert!(inconclusive_reason(88_000, true).contains("воспроизведение"));
+        assert!(inconclusive_reason(88_000, false).contains("воспроизведение"));
     }
 }

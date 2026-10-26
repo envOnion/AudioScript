@@ -5,26 +5,26 @@ export type PageId = 'transcribe' | 'audio' | 'permissions' | 'translate' | 'ove
 export const NAV: SidebarItem<PageId>[] = [
   {
     id: 'transcribe',
-    label: '转写',
+    label: 'Расшифровка',
     icon: 'waveform',
   },
   {
     id: 'audio',
-    label: '音频',
+    label: 'Аудио',
     icon: 'speaker',
   },
-  { id: 'permissions', label: '权限', icon: 'shield' },
+  { id: 'permissions', label: 'Разрешения', icon: 'shield' },
   {
     id: 'translate',
-    label: '翻译',
+    label: 'Перевод',
     icon: 'translate',
   },
   {
     id: 'overlay',
-    label: '悬浮窗',
+    label: 'Окно субтитров',
     icon: 'overlay',
   },
-  { id: 'general', label: '通用', icon: 'settings' },
-  { id: 'models', label: '模型', icon: 'chip' },
-  { id: 'about', label: '关于', icon: 'info' },
+  { id: 'general', label: 'Общие', icon: 'settings' },
+  { id: 'models', label: 'Модели', icon: 'chip' },
+  { id: 'about', label: 'О приложении', icon: 'info' },
 ]

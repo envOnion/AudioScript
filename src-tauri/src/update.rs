@@ -33,16 +33,18 @@ impl Drop for InstallGuard {
 }
 
 pub async fn check(app: &AppHandle) -> Result<UpdateCheck, String> {
-    let updater = app.updater().map_err(|e| format!("更新组件未就绪：{e}"))?;
+    let updater = app
+        .updater()
+        .map_err(|e| format!("Компонент обновлений не готов: {e}"))?;
     let update = updater
         .check()
         .await
-        .map_err(|e| format!("检查更新失败：{e}"))?;
+        .map_err(|e| format!("Не удалось проверить обновления: {e}"))?;
 
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     match update {
         Some(update) => {
-            tracing::info!(version = %update.version, "发现新版本");
+            tracing::info!(version = %update.version, "Найдена новая версия");
             Ok(UpdateCheck {
                 current_version,
                 available: true,
@@ -61,21 +63,23 @@ pub async fn check(app: &AppHandle) -> Result<UpdateCheck, String> {
 
 pub async fn install(app: &AppHandle) -> Result<String, String> {
     if INSTALLING.swap(true, Ordering::SeqCst) {
-        return Err("正在更新，请稍候".into());
+        return Err("Обновление уже выполняется. Подождите".into());
     }
     let _guard = InstallGuard;
 
-    let updater = app.updater().map_err(|e| format!("更新组件未就绪：{e}"))?;
+    let updater = app
+        .updater()
+        .map_err(|e| format!("Компонент обновлений не готов: {e}"))?;
     let Some(update) = updater
         .check()
         .await
-        .map_err(|e| format!("检查更新失败：{e}"))?
+        .map_err(|e| format!("Не удалось проверить обновления: {e}"))?
     else {
-        return Err("已是最新版本，无需更新".into());
+        return Err("Установлена последняя версия".into());
     };
 
     let version = update.version.clone();
-    tracing::info!(version = %version, "开始下载更新");
+    tracing::info!(version = %version, "Загрузка обновления начата");
 
     let handle = app.clone();
     let mut downloaded = 0u64;
@@ -93,8 +97,8 @@ pub async fn install(app: &AppHandle) -> Result<String, String> {
             || {},
         )
         .await
-        .map_err(|e| format!("安装更新失败：{e}"))?;
+        .map_err(|e| format!("Не удалось установить обновление: {e}"))?;
 
-    tracing::info!(version = %version, "更新已安装，重启后生效");
+    tracing::info!(version = %version, "Обновление установлено и будет применено после перезапуска");
     Ok(version)
 }

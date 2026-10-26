@@ -60,7 +60,7 @@ pub fn download_verified(
 
         if expected_size > 0 && received > expected_size + OVERSHOOT {
             return Err(ModelError::Network(format!(
-                "服务器返回的体积超过预期（已下载 {received} 字节）"
+                "Сервер передал больше данных, чем ожидалось (получено {received} байт)"
             )));
         }
 
@@ -107,15 +107,8 @@ mod tests {
     fn cancel_before_start_is_observed() {
         let cancel = AtomicBool::new(true);
         let dest = std::env::temp_dir().join(format!("dl-{}", uuid::Uuid::new_v4()));
-        let e = download_verified(
-            "http://127.0.0.1:9/never",
-            "",
-            0,
-            &dest,
-            &cancel,
-            |_, _| {},
-        )
-        .unwrap_err();
+        let e = download_verified("http://127.0.0.1:9/never", "", 0, &dest, &cancel, |_, _| {})
+            .unwrap_err();
         assert!(matches!(e, ModelError::Cancelled), "{e}");
     }
 }

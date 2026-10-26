@@ -10,7 +10,7 @@ use crate::asr::{AsrEngine, TARGET_SAMPLE_RATE};
 use crate::audio::{self, CaptureHandle, SILENCE_RMS};
 use crate::config::{
     target_lang_for, AsrConfig, EngineType, MtModelTier, SessionConfig, TranslateConfig,
-    TranslateEngine, ZhScript,
+    TranslateEngine,
 };
 use crate::models::catalog;
 use crate::paths;
@@ -33,12 +33,12 @@ fn create_translator(
                 tier = mt_tier.as_str(),
                 via = resolved.via.as_str(),
                 path = %resolved.path.display(),
-                "翻译模型目录"
+                "Каталог модели перевода"
             );
             let missing = paths::missing_mt_files(&resolved.path, catalog::mt_entry(mt_tier))?;
             if !missing.is_empty() {
                 return Err(format!(
-                    "所选翻译模型「{}」未安装或文件不完整：{}\n缺少：{}\n→ 打开「模型」页下载，或切换回基础模型",
+                    "Модель перевода «{}» не установлена или повреждена: {}\nОтсутствуют: {}\nВыберите встроенный перевод на странице «Модели»",
                     catalog::mt_entry(mt_tier).title,
                     resolved.path.display(),
                     missing.join(", ")
@@ -65,7 +65,7 @@ fn create_translator(
         )),
         TranslateEngine::RemoteApi => {
             return Err(format!(
-                "翻译引擎 {} 尚未接入。可选值：local-nmt（本地离线）、mock（开发用）、off（仅显示原文）",
+                "Движок перевода {} пока не поддерживается. Доступны local-nmt (локальный), mock (для разработки), off (только оригинал)",
                 cfg.engine.as_str()
             ));
         }
@@ -146,24 +146,24 @@ pub fn init_emitter(app: &AppHandle) -> Result<(), String> {
                     UiEvent::Segments(segments) => emit_segments(&app, segments),
                     UiEvent::Level(level) => {
                         if let Err(e) = app.emit(EVENT_LEVEL, level) {
-                            tracing::debug!("广播电平失败（可能没有窗口）：{e}");
+                            tracing::debug!("Не удалось передать уровень звука в окно: {e}");
                         }
                     }
                     UiEvent::Audio(status) => {
                         if let Err(e) = app.emit(EVENT_AUDIO, status) {
-                            tracing::debug!("广播音频状态失败（可能没有窗口）：{e}");
+                            tracing::debug!("Не удалось передать состояние звука в окно: {e}");
                         }
                     }
                 }
 
                 let ms = t0.elapsed().as_millis();
                 if ms >= 300 {
-                    tracing::warn!(ms, "事件广播耗时异常");
+                    tracing::warn!(ms, "Передача события заняла слишком много времени");
                 }
             }
-            tracing::debug!("事件线程退出");
+            tracing::debug!("Поток событий завершён");
         })
-        .map_err(|e| format!("启动事件线程失败：{e}"))?;
+        .map_err(|e| format!("Не удалось запустить поток событий: {e}"))?;
 
     let _ = EVENT_SENDER.set(tx);
     Ok(())
@@ -173,7 +173,7 @@ fn events_sender() -> Result<Sender<UiEvent>, String> {
     EVENT_SENDER
         .get()
         .cloned()
-        .ok_or_else(|| "事件线程未初始化".to_string())
+        .ok_or_else(|| "Поток событий не инициализирован".to_string())
 }
 
 enum TranslateCommand {
@@ -215,23 +215,23 @@ pub fn init_translate_worker() -> Result<(), String> {
                         match seg.translation_state {
                             TranslationState::Done => {
                                 tracing::info!(
-                                    "[译文] {}",
+                                    "[Перевод] {}",
                                     seg.translation.as_deref().unwrap_or("")
                                 )
                             }
                             TranslationState::Failed => {
-                                tracing::warn!(id = %seg.id, "[译文] 失败，该段只显示原文")
+                                tracing::warn!(id = %seg.id, "[Перевод] Ошибка; для этого фрагмента отображается оригинал")
                             }
                             _ => {}
                         }
                         let _ = events.send(UiEvent::Segments(vec![seg]));
                     }
                 }
-                tracing::info!("翻译工作线程空闲");
+                tracing::info!("Поток перевода ожидает задания");
             }
-            tracing::debug!("翻译线程退出");
+            tracing::debug!("Поток перевода завершён");
         })
-        .map_err(|e| format!("启动翻译线程失败：{e}"))?;
+        .map_err(|e| format!("Не удалось запустить поток перевода: {e}"))?;
     let _ = TRANSLATE_TX.set(tx);
     Ok(())
 }
@@ -268,12 +268,16 @@ impl SessionState {
         if let Some(t0) = t0 {
             let ms = t0.elapsed().as_millis();
             if ms <= FIRST_TEXT_BUDGET_MS {
-                tracing::info!(ms, budget = FIRST_TEXT_BUDGET_MS, "首次出字：达标");
+                tracing::info!(
+                    ms,
+                    budget = FIRST_TEXT_BUDGET_MS,
+                    "Первый текст получен в пределах допустимой задержки"
+                );
             } else {
                 tracing::warn!(
                     ms,
                     budget = FIRST_TEXT_BUDGET_MS,
-                    "首次出字：**超出预算**（含引擎加载——模型是在点开始时才加载的）"
+                    "Первый текст получен с превышением допустимой задержки, включая загрузку модели при старте"
                 );
             }
         }
@@ -341,11 +345,11 @@ pub fn start(
     let mut cfg = cfg;
     cfg.translate.target_lang = target_lang_for(&cfg.translate.source_lang).to_owned();
 
-    tracing::info!("启动：收到命令");
+    tracing::info!("Запуск: команда получена");
     let state = app.state::<SessionState>();
 
     if state.is_running() {
-        return Err("已在采集中".into());
+        return Err("Захват звука уже запущен".into());
     }
 
     let mut waited_ms = 0u64;
@@ -354,10 +358,13 @@ pub fn start(
         waited_ms += 100;
     }
     if state.teardown_active.load(Ordering::SeqCst) {
-        return Err("上一次会话仍在收尾（音频设备尚未释放），请稍后重试".into());
+        return Err("Предыдущий сеанс ещё завершается и удерживает аудиоустройство. Повторите попытку позже".into());
     }
     if waited_ms > 0 {
-        tracing::info!(ms = waited_ms, "启动前等待上一次收尾完成");
+        tracing::info!(
+            ms = waited_ms,
+            "Ожидание завершения предыдущего сеанса перед запуском"
+        );
     }
 
     let t0 = Instant::now();
@@ -373,7 +380,7 @@ pub fn start(
 
     if !matches!(cfg.asr.engine_type, EngineType::LocalStreaming) {
         return Err(format!(
-            "引擎 {} 尚未接入（当前仅支持 local-streaming）",
+            "Движок {} не поддерживается; доступен local-streaming",
             cfg.asr.engine_type.as_str()
         ));
     }
@@ -390,17 +397,13 @@ pub fn start(
     {
         let dir = dunce::simplified(std::path::Path::new(custom)).to_path_buf();
         if !dir.is_dir() {
-            return Err(format!("自定义 ASR 模型目录不存在：{}", dir.display()));
-        }
-        let missing = paths::missing_asr_files(&dir, asr_entry)?;
-        if !missing.is_empty() {
             return Err(format!(
-                "自定义 ASR 模型目录不完整：{}\n缺少：{}",
-                dir.display(),
-                missing.join(", ")
+                "Каталог пользовательской модели ASR отсутствует: {}",
+                dir.display()
             ));
         }
-        tracing::info!(path = %dir.display(), "使用自定义 ASR 模型目录");
+        crate::asr::streaming::discover_model_files(&dir).map_err(|e| e.to_string())?;
+        tracing::info!(path = %dir.display(), "Используется каталог пользовательской модели ASR");
         dir
     } else {
         let roots = paths::search_roots(app);
@@ -409,18 +412,24 @@ pub fn start(
             tier = prefs.asr_model_tier.as_str(),
             via = resolved.via.as_str(),
             path = %resolved.path.display(),
-            "会话使用 ASR 模型"
+            "Сеанс использует модель ASR"
         );
         let missing = paths::missing_asr_files(&resolved.path, asr_entry)?;
         if !missing.is_empty() {
             return Err(format!(
-                "所选语音识别模型「{}」未安装或文件不完整：{}\n缺少：{}\n→ 打开「模型」页下载，或切换回内置模型",
+                "Модель распознавания «{}» не установлена или повреждена: {}\nОтсутствуют: {}\nВыберите встроенное распознавание на странице «Модели»",
                 asr_entry.title,
                 resolved.path.display(),
                 missing.join(", ")
             ));
         }
-        resolved.path
+        if !matches!(cfg.asr.source_lang.as_str(), "en" | "ru") {
+            return Err(format!(
+                "Неподдерживаемый язык распознавания: {}",
+                cfg.asr.source_lang
+            ));
+        }
+        resolved.path.join(&cfg.asr.source_lang)
     };
 
     let mut engine = crate::asr::streaming::StreamingAdapter::new();
@@ -430,25 +439,27 @@ pub fn start(
     };
     engine
         .init(&engine_cfg)
-        .map_err(|e| format!("引擎初始化失败：{e}"))?;
+        .map_err(|e| format!("Не удалось инициализировать движок: {e}"))?;
     tracing::info!(
         caps = ?engine.capabilities(),
         ms = t0.elapsed().as_millis(),
-        "ASR 引擎已就绪"
+        "Движок распознавания готов"
     );
 
     let engine: Arc<Mutex<Box<dyn AsrEngine>>> = Arc::new(Mutex::new(Box::new(engine)));
 
-    let translator: Arc<Mutex<Box<dyn Translator>>> = Arc::new(Mutex::new(
-        create_translator(app, &cfg.translate, prefs.mt_model_tier)?,
-    ));
+    let translator: Arc<Mutex<Box<dyn Translator>>> = Arc::new(Mutex::new(create_translator(
+        app,
+        &cfg.translate,
+        prefs.mt_model_tier,
+    )?));
 
     let queue = Arc::new(JobQueue::new(TRANSLATE_QUEUE_CAPACITY));
     let events = events_sender()?;
 
     let translate_tx = TRANSLATE_TX
         .get()
-        .ok_or("翻译线程未初始化")?
+        .ok_or("Поток перевода не инициализирован")?
         .clone();
     translate_tx
         .send(TranslateCommand::Start {
@@ -457,7 +468,7 @@ pub fn start(
             store: Arc::clone(&state.store),
             events: events.clone(),
         })
-        .map_err(|_| "翻译线程已退出".to_string())?;
+        .map_err(|_| "Поток перевода уже завершён".to_string())?;
 
     if let Err(e) = translator
         .lock()
@@ -465,7 +476,7 @@ pub fn start(
         .init(&cfg.translate)
     {
         queue.close();
-        return Err(format!("翻译引擎初始化失败：{e}"));
+        return Err(format!("Не удалось инициализировать перевод: {e}"));
     }
     let caps = translator
         .lock()
@@ -475,7 +486,7 @@ pub fn start(
         engine = cfg.translate.engine.as_str(),
         ?caps,
         ms = t0.elapsed().as_millis(),
-        "翻译引擎已就绪"
+        "Движок перевода готов"
     );
 
     let store = Arc::clone(&state.store);
@@ -497,9 +508,7 @@ pub fn start(
     let mut level_n = 0usize;
     let mut level_emit_failed = false;
 
-    tracing::info!("启动采集");
-    let translate_source_is_zh = cfg.translate.source_lang.starts_with("zh");
-    let zh_script = cfg.translate.zh_script;
+    tracing::info!("Запуск захвата звука");
     let audio_clock = Arc::clone(&state.audio_started_at);
     let capture = audio::start(source, device.as_deref(), move |chunk: &[f32]| {
         {
@@ -519,7 +528,7 @@ pub fn start(
             let level = audio::rms(level_sq, level_n);
             if events_for_sink.send(UiEvent::Level(level)).is_err() && !level_emit_failed {
                 level_emit_failed = true;
-                tracing::error!("事件线程已退出，后续电平不再广播");
+                tracing::error!("Поток событий завершён; передача уровня звука остановлена");
             }
             last_level = Instant::now();
             level_sq = 0.0;
@@ -536,14 +545,14 @@ pub fn start(
 
             if silent {
                 let hint = if count > 0 {
-                    "已转出过文字，多半只是暂时没有音频（暂停或静音段落），不一定是故障"
+                    "Текст уже распознавался. Возможно, сейчас пауза или тихий фрагмент"
                 } else if matches!(
                     source,
                     audio::AudioSourceKind::Loopback | audio::AudioSourceKind::Mix
                 ) {
-                    "还没转出任何文字。确认播放器在出声；若确实在播，检查「屏幕与系统音频录制」权限"
+                    "Текст ещё не распознан. Проверьте звук в проигрывателе и разрешение «Запись экрана и системного аудио»"
                 } else {
-                    "还没转出任何文字，麦克风可能未授权、被占用，或所选设备是虚拟回环"
+                    "Текст ещё не распознан. Проверьте разрешение микрофона, доступность и выбор аудиоустройства"
                 };
 
                 if count > 0 {
@@ -552,7 +561,7 @@ pub fn start(
                             rms = format!("{rms:.6}"),
                             segments = count,
                             source = source.as_str(),
-                            "音频电平接近零：{hint}"
+                            "Уровень звука близок к нулю: {hint}"
                         );
                     }
                 } else {
@@ -560,7 +569,7 @@ pub fn start(
                         rms = format!("{rms:.6}"),
                         segments = count,
                         source = source.as_str(),
-                        "**音频电平接近零**：{hint}"
+                        "**Уровень звука близок к нулю**: {hint}"
                     );
                 }
             } else {
@@ -568,7 +577,7 @@ pub fn start(
                     rms = format!("{rms:.4}"),
                     segments = count,
                     source = source.as_str(),
-                    "心跳"
+                    "Проверка активности"
                 );
             }
 
@@ -586,23 +595,18 @@ pub fn start(
             energy_n = 0;
         }
 
-        let mut deltas = {
+        let deltas = {
             let mut eng = engine_for_sink.lock().expect("engine mutex poisoned");
             match eng.feed_pcm(chunk) {
                 Ok(d) => d,
                 Err(e) => {
-                    tracing::error!("引擎处理音频失败：{e}");
+                    tracing::error!("Ошибка обработки звука: {e}");
                     return;
                 }
             }
         };
         if deltas.is_empty() {
             return;
-        }
-        if translate_source_is_zh && zh_script == ZhScript::Traditional {
-            for d in &mut deltas {
-                d.text = crate::translate::script::to_traditional(&d.text);
-            }
         }
 
         let to_translate = {
@@ -620,7 +624,7 @@ pub fn start(
                                 start_ms = seg.start_ms,
                                 end_ms = seg.end_ms,
                                 gap_ms = audio_ms - seg.end_ms as i128,
-                                "[定稿] {}",
+                                "[Готовый фрагмент] {}",
                                 seg.text
                             );
                         }
@@ -639,7 +643,7 @@ pub fn start(
                     marked
                 }
                 Err(e) => {
-                    tracing::error!("段落状态机拒绝了引擎输出：{e}");
+                    tracing::error!("Результат движка отклонён при обновлении фрагмента: {e}");
                     return;
                 }
             }
@@ -653,7 +657,7 @@ pub fn start(
             if let Some(d) = dropped {
                 tracing::warn!(
                     dropped_ms = d.segment_id,
-                    "翻译队列溢出，丢弃最旧的任务（翻译跟不上实时）"
+                    "Очередь перевода переполнена; удалено самое старое задание"
                 );
             }
             pending.push(seg);
@@ -665,7 +669,7 @@ pub fn start(
             last_emit = Instant::now();
         }
     })
-    .map_err(|e| format!("启动采集失败：{e}"))?;
+    .map_err(|e| format!("Не удалось запустить захват звука: {e}"))?;
 
     let device_name = capture.device_name().to_string();
     let device_sample_rate = capture.device_sample_rate();
@@ -675,7 +679,7 @@ pub fn start(
         device_sample_rate,
         target_sample_rate = TARGET_SAMPLE_RATE,
         setup_ms = t0.elapsed().as_millis(),
-        "转写会话已开始"
+        "Сеанс распознавания запущен"
     );
 
     let _ = events.send(UiEvent::Status(TaskStatus::Capturing));
@@ -701,7 +705,6 @@ pub fn start(
             "audio_source": source.as_str(),
             "translate_engine": cfg.translate.engine.as_str(),
             "source_lang": cfg.translate.source_lang,
-            "zh_script": cfg.translate.zh_script.as_str(),
             "asr_model_tier": prefs.asr_model_tier.as_str(),
             "custom_asr_model": if cfg.asr.model_dir.as_deref().is_some_and(|s| !s.trim().is_empty()) { 1 } else { 0 },
         })),
@@ -711,7 +714,7 @@ pub fn start(
 }
 
 pub fn stop(app: &AppHandle) -> Result<(), String> {
-    tracing::info!("停止：收到命令");
+    tracing::info!("Остановка: команда получена");
     let state = app.state::<SessionState>();
 
     let Some(session) = state
@@ -721,10 +724,10 @@ pub fn stop(app: &AppHandle) -> Result<(), String> {
         .take()
     else {
         state.set_status(TaskStatus::Ready);
-        tracing::info!("停止：没有运行中的会话，直接返回");
+        tracing::info!("Остановка: активный сеанс отсутствует");
         return Ok(());
     };
-    tracing::info!("停止：已摘除运行会话");
+    tracing::info!("Остановка: активный сеанс отсоединён");
 
     let audio_ms = {
         let clock = state
@@ -749,7 +752,7 @@ pub fn stop(app: &AppHandle) -> Result<(), String> {
 
     state.set_status(TaskStatus::Ready);
     let _ = session.events.send(UiEvent::Status(TaskStatus::Ready));
-    tracing::info!("停止：状态已就绪，收尾转入后台");
+    tracing::info!("Остановка: состояние готовности восстановлено; завершение продолжается в фоне");
 
     state.teardown_active.store(true, Ordering::SeqCst);
 
@@ -759,12 +762,14 @@ pub fn stop(app: &AppHandle) -> Result<(), String> {
     match TEARDOWN_TX.get() {
         Some(tx) => {
             if let Err(err) = tx.send(task) {
-                tracing::error!("收尾线程已退出，改为在命令线程收尾");
+                tracing::error!("Поток завершения закрыт; сеанс завершается в потоке команд");
                 (err.0)();
             }
         }
         None => {
-            tracing::error!("收尾线程未初始化，改为在命令线程收尾");
+            tracing::error!(
+                "Поток завершения не инициализирован; сеанс завершается в потоке команд"
+            );
             task();
         }
     }
@@ -785,9 +790,9 @@ pub fn init_teardown_executor() -> Result<(), String> {
             while let Ok(task) = rx.recv() {
                 task();
             }
-            tracing::debug!("收尾线程退出");
+            tracing::debug!("Поток завершения закрыт");
         })
-        .map_err(|e| format!("启动收尾线程失败：{e}"))?;
+        .map_err(|e| format!("Не удалось запустить поток завершения: {e}"))?;
     let _ = TEARDOWN_TX.set(tx);
     Ok(())
 }
@@ -797,7 +802,7 @@ fn finish_teardown(app: &AppHandle, session: RunningSession) {
         teardown(app, session);
     }));
     if outcome.is_err() {
-        tracing::error!("收尾线程异常退出");
+        tracing::error!("Поток завершения аварийно закрыт");
     }
     app.state::<SessionState>()
         .teardown_active
@@ -815,11 +820,14 @@ fn teardown(app: &AppHandle, session: RunningSession) {
     } = session;
     let t0 = Instant::now();
 
-    tracing::info!("收尾：等待采集线程退出");
+    tracing::info!("Завершение: ожидание закрытия потока захвата");
     drop(capture);
-    tracing::info!(ms = t0.elapsed().as_millis(), "收尾：采集线程已退出");
+    tracing::info!(
+        ms = t0.elapsed().as_millis(),
+        "Завершение: поток захвата закрыт"
+    );
 
-    tracing::info!("收尾：冲刷引擎");
+    tracing::info!("Завершение: получение оставшегося текста");
     let tail = {
         let mut eng = engine.lock().expect("engine mutex poisoned");
         let flushed = eng.flush();
@@ -836,33 +844,39 @@ fn teardown(app: &AppHandle, session: RunningSession) {
             match applied {
                 Ok(changed) => changed,
                 Err(e) => {
-                    tracing::error!("收尾段落被状态机拒绝：{e}");
+                    tracing::error!("Последний фрагмент отклонён: {e}");
                     Vec::new()
                 }
             }
         }
         Ok(_) => Vec::new(),
         Err(e) => {
-            tracing::error!("冲刷引擎失败：{e}");
+            tracing::error!("Не удалось получить оставшийся текст: {e}");
             Vec::new()
         }
     };
-    tracing::info!(ms = t0.elapsed().as_millis(), "收尾：引擎已关闭");
+    tracing::info!(ms = t0.elapsed().as_millis(), "Завершение: движок закрыт");
 
     let dropped = queue.clear();
     if dropped > 0 {
-        tracing::info!(dropped, "停止时丢弃了积压的翻译任务");
+        tracing::info!(
+            dropped,
+            "При остановке удалены накопившиеся задания перевода"
+        );
     }
     queue.close();
 
-    tracing::info!(ms = t0.elapsed().as_millis(), "收尾：翻译队列已关闭");
+    tracing::info!(
+        ms = t0.elapsed().as_millis(),
+        "Завершение: очередь перевода закрыта"
+    );
 
-    tracing::info!("收尾：释放翻译引擎");
+    tracing::info!("Завершение: освобождение движка перевода");
     translator
         .lock()
         .expect("translator mutex poisoned")
         .shutdown();
-    tracing::info!(ms = t0.elapsed().as_millis(), "收尾完成");
+    tracing::info!(ms = t0.elapsed().as_millis(), "Сеанс полностью завершён");
 
     if !changed.is_empty() {
         let _ = events.send(UiEvent::Segments(changed));
@@ -906,14 +920,14 @@ fn emit_segments(app: &AppHandle, segments: Vec<TranscriptSegment>) {
     }
 
     if let Err(e) = app.emit(EVENT_SEGMENTS, segments) {
-        tracing::debug!("广播段落失败（可能没有窗口在监听）：{e}");
+        tracing::debug!("Не удалось передать фрагмент в окно: {e}");
     }
 }
 
 fn emit_status(app: &AppHandle, status: TaskStatus) {
     crate::tray::sync_task_state(app, status);
     if let Err(e) = app.emit(EVENT_TASK_STATE, status) {
-        tracing::debug!("广播任务状态失败（可能没有窗口在监听）：{e}");
+        tracing::debug!("Не удалось передать состояние задания в окно: {e}");
     }
 }
 

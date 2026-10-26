@@ -93,10 +93,10 @@ export function PrimaryAction({ capturing, pending, activeDevice, onToggle }: Pr
   const elapsed = useElapsed(capturing)
 
   const state = pending
-    ? { label: capturing ? '停止中…' : '启动中…', dot: 'bg-[var(--color-warn)] animate-pulse' }
+    ? { label: capturing ? 'Остановка…' : 'Запуск…', dot: 'bg-[var(--color-warn)] animate-pulse' }
     : capturing
-      ? { label: activeDevice ?? '采集中', dot: 'bg-[var(--color-danger)] animate-pulse' }
-      : { label: '就绪', dot: 'bg-[var(--color-success)]' }
+      ? { label: activeDevice ?? 'Запись', dot: 'bg-[var(--color-danger)] animate-pulse' }
+      : { label: 'Готово', dot: 'bg-[var(--color-success)]' }
 
   return (
     <div className="space-y-2">
@@ -126,7 +126,7 @@ export function PrimaryAction({ capturing, pending, activeDevice, onToggle }: Pr
         />
         <span className="relative flex items-center justify-center gap-1.5">
           <Icon name={capturing ? 'stop' : 'play'} size={14} />
-          {capturing ? '停止转写' : '开始转写'}
+          {capturing ? 'Остановить запись' : 'Начать запись'}
         </span>
       </button>
 

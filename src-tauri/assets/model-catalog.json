@@ -5,151 +5,226 @@
       "id": "asr-builtin",
       "kind": "asr",
       "tier": "builtin",
-      "title": "内置语音识别（小模型）",
-      "description": "中英双语流式识别，随应用分发，开箱即用。",
+      "title": "Встроенное распознавание речи",
+      "description": "Потоковое распознавание английской и русской речи без подключения к интернету.",
       "bundled": true,
       "downloadable": false,
       "install": {
-        "dir": "sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16"
+        "dir": "asr-builtin"
       },
       "required": {
         "asr": {
           "encoder": "int8",
           "decoder": "fp32",
           "joiner": "int8",
-          "files": ["tokens.txt"]
+          "files": [
+            "tokens.txt"
+          ],
+          "languages": [
+            "en",
+            "ru"
+          ]
         }
       },
-      "sizes": { "installedBytes": 60817408 },
+      "sizes": {
+        "installedBytes": 73798381
+      },
       "licenses": [
         {
-          "component": "sherpa-onnx streaming zipformer small bilingual zh-en (2023-02-16)",
+          "component": "English Zipformer 20M (2023-02-17)",
           "license": "Apache-2.0",
           "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
           "requiresAttribution": false,
-          "attribution": "k2-fsa/sherpa-onnx"
+          "attribution": "desh2608 / k2-fsa / sherpa-onnx"
+        },
+        {
+          "component": "Russian Vosk small streaming 0.54 (2025-08-16)",
+          "license": "Apache-2.0",
+          "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+          "requiresAttribution": false,
+          "attribution": "Alpha Cephei Inc / k2-fsa / sherpa-onnx"
         }
       ],
-      "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx"
+      "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx",
+      "sources": [
+        {
+          "language": "en",
+          "repository": "csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
+          "revision": "d42f2d9f7ca24806fb667456a18a9f1b60f70d16",
+          "files": [
+            {
+              "name": "encoder-epoch-99-avg-1.int8.onnx",
+              "sizeBytes": 42845182,
+              "sha256": "3810755ce7c3ab26b42a8bcf39d191308fa27fb0f53358823ba46141d03b7eb3"
+            },
+            {
+              "name": "decoder-epoch-99-avg-1.onnx",
+              "sizeBytes": 2092272,
+              "sha256": "45a7f940ecfb53d89fa270ad11b88b961e53a317203eb24b1c8e95ed208b0f30"
+            },
+            {
+              "name": "joiner-epoch-99-avg-1.int8.onnx",
+              "sizeBytes": 259572,
+              "sha256": "e085d73b593cf9b0707f370dbd656d58327d3fe36d80d849202ef81df02cb01e"
+            },
+            {
+              "name": "tokens.txt",
+              "sizeBytes": 5048,
+              "sha256": "49e3c2646595fd907228b3c6787069658f67b17377c60aeb8619c4551b2316fb"
+            }
+          ]
+        },
+        {
+          "language": "ru",
+          "repository": "csukuangfj/sherpa-onnx-streaming-zipformer-small-ru-vosk-int8-2025-08-16",
+          "revision": "31fa603e4f31279c6e1f7600fed13dc4312663ab",
+          "files": [
+            {
+              "name": "encoder.int8.onnx",
+              "sizeBytes": 26214060,
+              "sha256": "e0db705e94ec35d803b1df4f40cda23d064e1142977c80ab288430b109777a9d"
+            },
+            {
+              "name": "decoder.onnx",
+              "sizeBytes": 2093080,
+              "sha256": "89b3088a9e20e1ef7f2e85ce1a3478afe6a9c4ac57369cabcc4beb8e95328ea0"
+            },
+            {
+              "name": "joiner.int8.onnx",
+              "sizeBytes": 259417,
+              "sha256": "b55784b071ab7512eab4c7c44e4f5478284ef33c83562cc6a249b972515a31e5"
+            },
+            {
+              "name": "tokens.txt",
+              "sizeBytes": 6388,
+              "sha256": "93bbbc0bae6b78c0bbb743d4aa9fded3bb5ff3aac5f0200e3a769a5a05e0fdf6"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "asr-high-accuracy",
       "kind": "asr",
       "tier": "high-accuracy",
-      "title": "高精度语音识别",
-      "description": "更大的双语流式模型，识别更准，占用更多内存与 CPU。",
+      "title": "Повышенная точность (недоступно)",
+      "description": "Дополнительный комплект моделей для русского и английского языков пока не опубликован.",
       "bundled": false,
-      "downloadable": true,
+      "downloadable": false,
       "install": {
         "dir": "asr-high",
-        "archiveRoot": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20"
+        "directions": [
+          "en",
+          "ru"
+        ]
       },
       "required": {
         "asr": {
           "encoder": "int8",
           "decoder": "fp32",
           "joiner": "int8",
-          "files": ["tokens.txt"]
+          "files": [
+            "tokens.txt"
+          ],
+          "languages": [
+            "en",
+            "ru"
+          ]
         }
       },
-      "archive": {
-        "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
-        "format": "tar-bz2",
-        "sha256": "27ffbd9ee24ad186d99acc2f6354d7992b27bcab490812510665fa8f9389c5f8",
-        "sizeBytes": 511274346,
-        "maxExtractedBytes": 314572800
+      "sizes": {
+        "installedBytes": 0
       },
-      "pruneProfile": "sherpa-asr-mixed-int8",
-      "sizes": { "installedBytes": 199301041 },
-      "licenses": [
-        {
-          "component": "sherpa-onnx streaming zipformer bilingual zh-en (2023-02-20)",
-          "license": "Apache-2.0",
-          "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
-          "requiresAttribution": false,
-          "attribution": "k2-fsa/sherpa-onnx"
-        }
-      ],
+      "licenses": [],
       "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx"
     },
     {
       "id": "mt-base",
       "kind": "mt",
       "tier": "base",
-      "title": "内置机器翻译（基础版）",
-      "description": "en→zh 与 zh→en 各一个轻量模型，延迟低，随应用分发。",
+      "title": "Встроенный перевод",
+      "description": "Два локальных Marian OPUS-MT: английский → русский и русский → английский.",
       "bundled": true,
       "downloadable": false,
       "install": {
         "dir": "mt",
-        "directions": ["opus-mt-en-zh-ct2", "opus-mt-zh-en-ct2"]
+        "directions": [
+          "opus-mt-en-ru-ct2",
+          "opus-mt-ru-en-ct2"
+        ]
       },
       "required": {
         "mt": {
-          "files": ["model.bin", "source-tokenizer.json", "target-tokenizer.json"]
+          "files": [
+            "model.bin",
+            "source-tokenizer.json",
+            "target-tokenizer.json"
+          ]
         }
       },
-      "sizes": { "installedBytes": 171966464 },
+      "sizes": {
+        "installedBytes": 171379785
+      },
       "licenses": [
         {
-          "component": "Helsinki-NLP/opus-mt-en-zh",
+          "component": "Helsinki-NLP/opus-mt-en-ru",
           "license": "Apache-2.0",
           "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
           "requiresAttribution": false,
           "attribution": "Helsinki-NLP / OPUS-MT"
         },
         {
-          "component": "Helsinki-NLP/opus-mt-zh-en",
+          "component": "Helsinki-NLP/opus-mt-ru-en",
           "license": "CC-BY-4.0",
           "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
           "requiresAttribution": true,
           "attribution": "Helsinki-NLP / OPUS-MT"
         }
       ],
-      "sourceUrl": "https://github.com/Helsinki-NLP/Opus-MT"
+      "sourceUrl": "https://huggingface.co/Helsinki-NLP",
+      "sources": [
+        {
+          "repository": "Helsinki-NLP/opus-mt-en-ru",
+          "revision": "bb09c99d180016eac6819df3dae68edb1690fdee",
+          "weightsSha256": "d15fa58c6bc3efd3629c1b6b86d9aa6d15d2751a4620aa4cdd7eed7b5cbe583b",
+          "weightsBytes": 306991893
+        },
+        {
+          "repository": "Helsinki-NLP/opus-mt-ru-en",
+          "revision": "fbd6dc73284f95536648512cc21d57f19191961a",
+          "weightsSha256": "535450eb5613f3cc912f9ca3e54cfef6c14d201b319c24a88faf776a65538b5d",
+          "weightsBytes": 306991893
+        }
+      ]
     },
     {
       "id": "mt-big",
       "kind": "mt",
       "tier": "big",
-      "title": "大模型机器翻译（高精度）",
-      "description": "opus-mt-tc-big 双向模型，译文更自然；下载与内存占用明显更大。",
+      "title": "Расширенный перевод (недоступно)",
+      "description": "Дополнительный комплект перевода для русского и английского языков пока не опубликован.",
       "bundled": false,
       "downloadable": false,
       "install": {
         "dir": "mt/big",
-        "directions": ["opus-mt-tc-big-en-zh-ct2", "opus-mt-tc-big-zh-en-ct2"],
-        "archiveRoots": ["opus-mt-tc-big-en-zh-ct2", "opus-mt-tc-big-zh-en-ct2"]
+        "directions": [
+          "opus-mt-tc-big-en-ru-ct2",
+          "opus-mt-tc-big-ru-en-ct2"
+        ]
       },
       "required": {
         "mt": {
-          "files": ["model.bin", "source-tokenizer.json", "target-tokenizer.json"]
+          "files": [
+            "model.bin",
+            "source-tokenizer.json",
+            "target-tokenizer.json"
+          ]
         }
       },
-      "archive": {
-        "url": "https://github.com/niyongsheng/AudioScript/releases/download/models-v1/opus-mt-tc-big-en-zh-zh-en-ct2-int8.tar.gz",
-        "format": "tar-gz",
-        "sha256": "",
-        "sizeBytes": 0,
-        "maxExtractedBytes": 629145600
+      "sizes": {
+        "installedBytes": 0
       },
-      "sizes": { "installedBytes": 524288000 },
-      "licenses": [
-        {
-          "component": "Helsinki-NLP/opus-mt-tc-big-en-zh",
-          "license": "CC-BY-4.0",
-          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
-          "requiresAttribution": true,
-          "attribution": "Helsinki-NLP / OPUS-MT"
-        },
-        {
-          "component": "Helsinki-NLP/opus-mt-tc-big-zh-en",
-          "license": "CC-BY-4.0",
-          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
-          "requiresAttribution": true,
-          "attribution": "Helsinki-NLP / OPUS-MT"
-        }
-      ],
+      "licenses": [],
       "sourceUrl": "https://huggingface.co/Helsinki-NLP"
     }
   ]

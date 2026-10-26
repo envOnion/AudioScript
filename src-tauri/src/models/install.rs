@@ -26,13 +26,12 @@ pub fn start_download(app: &AppHandle, model_id: &str) -> Result<String, ModelEr
     if !entry.downloadable {
         return Err(ModelError::NotDownloadable(model_id.to_owned()));
     }
-    let archive = entry
-        .archive
-        .as_ref()
-        .ok_or_else(|| ModelError::Internal(format!("{} 没有下载信息", entry.id)))?;
+    let archive = entry.archive.as_ref().ok_or_else(|| {
+        ModelError::Internal(format!("У {} отсутствуют сведения для загрузки", entry.id))
+    })?;
     if archive.sha256.len() != 64 || archive.size_bytes == 0 {
         return Err(ModelError::Internal(format!(
-            "{} 的下载校验信息尚未配置",
+            "Для {} не настроены контрольные суммы загрузки",
             entry.id
         )));
     }
@@ -98,7 +97,7 @@ pub fn start_download(app: &AppHandle, model_id: &str) -> Result<String, ModelEr
                         &app_for_thread,
                         &status,
                         ModelPhase::Failed,
-                        Some("安装线程异常退出".into()),
+                        Some("Поток установки аварийно завершён".into()),
                     )
                 }
             }
@@ -118,10 +117,12 @@ pub fn start_download(app: &AppHandle, model_id: &str) -> Result<String, ModelEr
 
     if let Err(e) = spawned {
         app.state::<ModelState>().clear(&job_id);
-        return Err(ModelError::Internal(format!("启动安装线程失败：{e}")));
+        return Err(ModelError::Internal(format!(
+            "Не удалось запустить поток установки: {e}"
+        )));
     }
 
-    tracing::info!(model = model_id, job = %job_id, "模型下载已开始");
+    tracing::info!(model = model_id, job = %job_id, "Загрузка модели началась");
     Ok(job_id)
 }
 
@@ -165,10 +166,9 @@ fn run_install(
 ) -> Result<(), ModelError> {
     let entry =
         catalog::entry(model_id).ok_or_else(|| ModelError::UnknownModel(model_id.to_owned()))?;
-    let archive = entry
-        .archive
-        .as_ref()
-        .ok_or_else(|| ModelError::Internal(format!("{} 没有下载信息", entry.id)))?;
+    let archive = entry.archive.as_ref().ok_or_else(|| {
+        ModelError::Internal(format!("У {} отсутствуют сведения для загрузки", entry.id))
+    })?;
 
     let user_root = paths::ensure_user_models_root(app).map_err(ModelError::Internal)?;
     let downloads = user_root.join(DOWNLOADS);
@@ -232,7 +232,7 @@ fn run_install(
     let moved_old = if final_dir.exists() {
         std::fs::rename(&final_dir, &old).map_err(|e| {
             ModelError::Io(format!(
-                "无法替换已存在的模型目录（可能文件被占用）：{}：{e}",
+                "Не удалось заменить каталог модели (файлы могут быть заняты): {}: {e}",
                 final_dir.display()
             ))
         })?;
@@ -247,7 +247,7 @@ fn run_install(
         }
         discard_staging(&part, &staging_root);
         return Err(ModelError::Io(format!(
-            "安装模型失败（可能文件被占用）：{}：{e}",
+            "Не удалось установить модель (файлы могут быть заняты): {}: {e}",
             final_dir.display()
         )));
     }
@@ -257,7 +257,7 @@ fn run_install(
         std::fs::remove_dir_all(&old).ok();
     }
 
-    tracing::info!(model = %entry.id, dir = %final_dir.display(), "模型安装完成");
+    tracing::info!(model = %entry.id, dir = %final_dir.display(), "Модель установлена");
     Ok(())
 }
 
@@ -323,12 +323,13 @@ pub fn remove_model(app: &AppHandle, model_id: &str) -> Result<(), ModelError> {
         return Err(ModelError::InUse);
     }
 
-    let root = paths::user_models_root(app)
-        .ok_or_else(|| ModelError::Internal("无法解析应用数据目录".into()))?;
+    let root = paths::user_models_root(app).ok_or_else(|| {
+        ModelError::Internal("Не удалось определить каталог данных приложения".into())
+    })?;
     let dir = root.join(entry.installed_dir());
     if dir.exists() {
         std::fs::remove_dir_all(&dir)?;
-        tracing::info!(model = %entry.id, dir = %dir.display(), "模型已删除");
+        tracing::info!(model = %entry.id, dir = %dir.display(), "Модель удалена");
     }
 
     Ok(())
@@ -342,8 +343,10 @@ pub fn cleanup_stale(app: &AppHandle) {
         let dir = root.join(name);
         if dir.exists() {
             match std::fs::remove_dir_all(&dir) {
-                Ok(()) => tracing::debug!(path = %dir.display(), "已清理模型临时目录"),
-                Err(e) => tracing::warn!(path = %dir.display(), "清理模型临时目录失败：{e}"),
+                Ok(()) => tracing::debug!(path = %dir.display(), "Временный каталог модели очищен"),
+                Err(e) => {
+                    tracing::warn!(path = %dir.display(), "Не удалось очистить временный каталог модели: {e}")
+                }
             }
         }
     }
@@ -359,10 +362,17 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("models-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let missing = missing_files(&dir, asr).unwrap();
-        assert!(missing.iter().any(|m| m.starts_with("encoder")), "{missing:?}");
+        assert!(
+            missing.iter().any(|m| m.starts_with("en/"))
+                && missing.iter().any(|m| m.starts_with("ru/")),
+            "{missing:?}"
+        );
 
         let mt = catalog::entry("mt-big").unwrap();
         let missing = missing_files(&dir, mt).unwrap();
-        assert!(missing.iter().any(|m| m.contains("model.bin")), "{missing:?}");
+        assert!(
+            missing.iter().any(|m| m.contains("model.bin")),
+            "{missing:?}"
+        );
     }
 }

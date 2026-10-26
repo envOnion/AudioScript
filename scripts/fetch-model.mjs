@@ -1,208 +1,52 @@
 #!/usr/bin/env node
 
+import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, readdir, rename, rm, stat, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const catalog = JSON.parse(await readFile(join(ROOT, 'src-tauri/assets/model-catalog.json'), 'utf8'))
+if (process.argv.includes('high')) throw new Error('Дополнительный комплект ASR пока не опубликован')
+const model = catalog.models.find((entry) => entry.id === 'asr-builtin')
+const target = join(ROOT, 'src-tauri/assets/models', model.install.dir)
+const force = process.argv.includes('--force')
 
-const argv = process.argv.slice(2)
-const argValue = (name) => {
-  const i = argv.indexOf(name)
-  return i >= 0 ? argv[i + 1] : undefined
-}
-const high = argValue('--model') === 'high'
-const printCatalog = argv.includes('--print-catalog')
-const force = argv.includes('--force')
-
-const MODEL = high
-  ? 'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'
-  : 'sherpa-onnx-streaming-zipformer-small-bilingual-zh-en-2023-02-16'
-const URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL}.tar.bz2`
-
-const MODELS_DIR = join(ROOT, 'src-tauri', 'assets', 'models')
-const CACHE_DIR = join(ROOT, '.cache')
-const TARGET_DIR = high ? join(CACHE_DIR, 'asr-high') : join(MODELS_DIR, MODEL)
-const EXTRACTED_DIR = join(dirname(TARGET_DIR), MODEL)
-const ARCHIVE = join(CACHE_DIR, `${MODEL}.tar.bz2`)
-
-async function missingFiles() {
-  let entries
+async function valid(path, file) {
   try {
-    entries = await readdir(TARGET_DIR)
-  } catch {
-    return ['(模型目录不存在)']
-  }
-
-  const missing = []
-  for (const prefix of ['encoder', 'decoder', 'joiner']) {
-    if (!entries.some((n) => n.startsWith(prefix) && n.endsWith('.onnx'))) {
-      missing.push(`${prefix}*.onnx`)
-    }
-  }
-  if (!entries.includes('tokens.txt')) missing.push('tokens.txt')
-  return missing
-}
-
-async function exists(p) {
-  try {
-    await stat(p)
-    return true
+    const bytes = await readFile(path)
+    if (bytes.length !== file.sizeBytes) return false
+    if (file.sha256) return createHash('sha256').update(bytes).digest('hex') === file.sha256
+    return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') === file.gitBlobSha1
   } catch {
     return false
   }
 }
 
-async function download() {
-  await mkdir(CACHE_DIR, { recursive: true })
-  process.stdout.write(`⬇️  下载 ${MODEL}\n    ${URL}\n`)
-
-  const res = await fetch(URL, { redirect: 'follow' })
-  if (!res.ok) {
-    console.error(`❌ 下载失败：HTTP ${res.status} ${res.statusText}`)
-    process.exit(1)
-  }
-  await pipeline(Readable.fromWeb(res.body), createWriteStream(ARCHIVE))
-  process.stdout.write(`✅ 已缓存到 ${ARCHIVE}\n`)
-}
-
-function extract() {
-  const r = spawnSync('tar', ['-xjf', ARCHIVE, '-C', dirname(TARGET_DIR)], {
-    stdio: 'inherit',
-  })
-  if (r.error) {
-    console.error(`❌ 无法调用 tar：${r.error.message}`)
-    console.error('   macOS / Linux 自带；Windows 需 10 1803 以上')
-    process.exit(1)
-  }
-  if (r.status !== 0) {
-    console.error(`❌ 解压失败（tar 退出码 ${r.status}）`)
-    process.exit(1)
-  }
-}
-
-async function prune() {
-  const KEEP = [
-    (n) => n.startsWith('encoder') && n.endsWith('.int8.onnx'),
-    (n) => n.startsWith('decoder') && n.endsWith('.onnx') && !n.includes('.int8.'),
-    (n) => n.startsWith('joiner') && n.endsWith('.int8.onnx'),
-    (n) => n === 'tokens.txt',
-    (n) => n === 'bpe.model',
-  ]
-
-  const entries = await readdir(TARGET_DIR, { withFileTypes: true })
-  let removed = 0
-  let freed = 0
-
-  for (const e of entries) {
-    if (e.isDirectory()) {
-      freed += await dirSize(join(TARGET_DIR, e.name))
-      await rm(join(TARGET_DIR, e.name), { recursive: true, force: true })
-      removed++
-      continue
-    }
-    if (!KEEP.some((pred) => pred(e.name))) {
-      const p = join(TARGET_DIR, e.name)
-      freed += (await stat(p)).size
-      await unlink(p)
-      removed++
+for (const source of model.sources) {
+  const dir = join(target, source.language)
+  await mkdir(dir, { recursive: true })
+  for (const file of source.files) {
+    const path = join(dir, file.name)
+    if (!force && await valid(path, file)) continue
+    const url = `https://huggingface.co/${source.repository}/resolve/${source.revision}/${file.name}`
+    process.stdout.write(`⬇️ ${source.language}: ${file.name}\n`)
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`Загрузка ${url}: HTTP ${response.status}`)
+    const tmp = `${path}.tmp`
+    try {
+      await pipeline(Readable.fromWeb(response.body), createWriteStream(tmp))
+      if (!await valid(tmp, file)) throw new Error(`Контрольная сумма не совпадает: ${file.name}`)
+      await rename(tmp, path)
+    } finally {
+      await rm(tmp, { force: true })
     }
   }
-
-  if (removed > 0) {
-    process.stdout.write(
-      `🧹 剪裁 ${removed} 项，省下 ${(freed / 1024 / 1024).toFixed(1)} MB\n`,
-    )
-  }
+  await copyFile(join(ROOT, 'src-tauri/assets/model-licenses/Apache-2.0.txt'), join(dir, 'LICENSE.txt'))
+  await writeFile(join(dir, 'NOTICE.txt'), `Model: ${source.repository}\nRevision: ${source.revision}\nSource: https://huggingface.co/${source.repository}\nLicense: Apache-2.0 https://www.apache.org/licenses/LICENSE-2.0\nONNX conversion: k2-fsa/sherpa-onnx\n`)
 }
-
-async function dirSize(dir) {
-  let total = 0
-  for (const e of await readdir(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name)
-    total += e.isDirectory() ? await dirSize(p) : (await stat(p)).size
-  }
-  return total
-}
-
-async function sha256File(path) {
-  const { createHash } = await import('node:crypto')
-  const { createReadStream } = await import('node:fs')
-  return new Promise((resolvePromise, reject) => {
-    const hash = createHash('sha256')
-    createReadStream(path)
-      .on('data', (chunk) => hash.update(chunk))
-      .on('error', reject)
-      .on('end', () => resolvePromise(hash.digest('hex')))
-  })
-}
-
-async function reportCatalog() {
-  if (!high) return
-  if (!(await exists(ARCHIVE))) await download()
-  const sha = await sha256File(ARCHIVE)
-  const archiveSize = (await stat(ARCHIVE)).size
-  const installed = await dirSize(TARGET_DIR)
-  if (printCatalog) {
-    process.stdout.write(
-      `\nCATALOG_FRAGMENT\n${JSON.stringify(
-        { id: 'asr-high-accuracy', sha256: sha, sizeBytes: archiveSize, installedBytes: installed },
-        null,
-        2,
-      )}\n`,
-    )
-  } else {
-    process.stdout.write(`sha256=${sha}\nsizeBytes=${archiveSize}\ninstalledBytes=${installed}\n`)
-  }
-}
-
-async function main() {
-  if (!force) {
-    const missing = await missingFiles()
-    if (missing.length === 0) {
-      await prune()
-      process.stdout.write(`✅ 模型已就绪：${TARGET_DIR}\n`)
-      await reportCatalog()
-      return
-    }
-  }
-
-  await mkdir(dirname(TARGET_DIR), { recursive: true })
-  await rm(TARGET_DIR, { recursive: true, force: true })
-
-  if (force || !(await exists(ARCHIVE))) {
-    await download()
-  } else {
-    process.stdout.write(`↩️  复用缓存 ${ARCHIVE}\n`)
-  }
-
-  extract()
-  if (EXTRACTED_DIR !== TARGET_DIR) {
-    await rm(TARGET_DIR, { recursive: true, force: true })
-    await rename(EXTRACTED_DIR, TARGET_DIR)
-  }
-  await prune()
-
-  const missing = await missingFiles()
-  if (missing.length > 0) {
-    console.error(`❌ 剪裁后缺文件：${missing.join(', ')}`)
-    console.error(`   检查 ${TARGET_DIR} 的实际内容；`)
-    console.error('   若该模型没有 int8 版本，需要放宽 scripts/fetch-model.mjs 的 KEEP 规则')
-    process.exit(1)
-  }
-
-  const size = await dirSize(TARGET_DIR)
-  process.stdout.write(
-    `✅ 模型就绪：${TARGET_DIR}\n   实占 ${(size / 1024 / 1024).toFixed(1)} MB\n`,
-  )
-  await reportCatalog()
-}
-
-main().catch((e) => {
-  console.error('❌ 未预期的失败：', e)
-  process.exit(1)
-})
+const size = (await Promise.all(model.sources.flatMap((source) => source.files.map((file) => stat(join(target, source.language, file.name)))))).reduce((sum, file) => sum + file.size, 0)
+process.stdout.write(`✅ Английский и русский ASR готовы: ${(size / 1048576).toFixed(1)} МБ\n`)

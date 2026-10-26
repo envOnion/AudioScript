@@ -3,9 +3,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 use super::{Frame, LABEL};
-use crate::config::{
-    MIN_OVERLAY_HEIGHT, MIN_OVERLAY_WIDTH, WindowGeometry, WindowPos, WindowSize,
-};
+use crate::config::{WindowGeometry, WindowPos, WindowSize, MIN_OVERLAY_HEIGHT, MIN_OVERLAY_WIDTH};
 
 const POLL: Duration = Duration::from_millis(2_000);
 
@@ -19,7 +17,7 @@ pub fn restore(app: &AppHandle, saved: Option<WindowGeometry>) {
     let Some(g) = saved else { return };
 
     if Frame::get(app).is_err() {
-        tracing::warn!("悬浮窗不存在，跳过几何恢复");
+        tracing::warn!("Окно субтитров отсутствует. Восстановление положения и размера пропущено");
         return;
     }
 
@@ -28,7 +26,7 @@ pub fn restore(app: &AppHandle, saved: Option<WindowGeometry>) {
         tracing::warn!(
             saved_x = g.position.x,
             saved_y = g.position.y,
-            "记录的位置不在任何屏幕上（多半是拔了显示器），已搬回可见区域"
+            "Сохранённое положение находится вне экранов, вероятно из-за отключения монитора. Окно возвращено в видимую область"
         );
     }
 
@@ -42,13 +40,13 @@ pub fn restore(app: &AppHandle, saved: Option<WindowGeometry>) {
         y = safe.position.y,
         w = safe.size.width,
         h = safe.size.height,
-        "悬浮窗几何已恢复"
+        "Положение и размер окна субтитров восстановлены"
     );
 }
 
 pub fn start_watch(app: &AppHandle) {
     if app.get_webview_window(LABEL).is_none() {
-        tracing::error!("找不到悬浮窗，位置与尺寸不会被记住");
+        tracing::error!("Окно субтитров не найдено. Положение и размер не будут сохранены");
         return;
     }
 
@@ -73,7 +71,7 @@ pub fn start_watch(app: &AppHandle) {
         });
 
     if let Err(e) = spawned {
-        tracing::error!("无法启动几何监视线程：{e}");
+        tracing::error!("Не удалось запустить поток отслеживания положения окна: {e}");
     }
 }
 
@@ -96,19 +94,35 @@ fn log_monitors(app: &AppHandle) {
                 p.x,
                 p.y,
                 m.scale_factor(),
-                if is_primary { " (主)" } else { "" }
+                if is_primary {
+                    " (основной)"
+                } else {
+                    ""
+                }
             )
         })
         .collect();
 
-    tracing::info!(count = monitors.len(), "显示器布局：{}", desc.join(" | "));
+    tracing::info!(
+        count = monitors.len(),
+        "Расположение экранов: {}",
+        desc.join(" | ")
+    );
 }
 
 fn save(app: &AppHandle, g: WindowGeometry) {
     if let Err(e) = crate::prefs::update(app, |p| p.overlay_geometry = Some(g)) {
-        tracing::error!("悬浮窗位置保存失败，下次启动不会记住它：{e}");
+        tracing::error!(
+            "Не удалось сохранить положение окна субтитров для следующего запуска: {e}"
+        );
     } else {
-        tracing::debug!(x = g.position.x, y = g.position.y, w = g.size.width, h = g.size.height, "悬浮窗几何已保存");
+        tracing::debug!(
+            x = g.position.x,
+            y = g.position.y,
+            w = g.size.width,
+            h = g.size.height,
+            "Положение и размер окна субтитров сохранены"
+        );
     }
 }
 
@@ -132,7 +146,9 @@ fn clamp_to_visible(app: &AppHandle, g: WindowGeometry) -> WindowGeometry {
         Some(m) => m,
         None => {
             let Ok(Some(p)) = app.primary_monitor() else {
-                tracing::warn!("拿不到任何显示器信息，无法校验悬浮窗位置");
+                tracing::warn!(
+                    "Не удалось получить сведения об экранах и проверить положение окна субтитров"
+                );
                 return g;
             };
             primary = p;

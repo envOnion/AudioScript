@@ -69,13 +69,13 @@ function EditChrome() {
   const drag = (e: React.MouseEvent) => {
     if (e.button !== 0) return
     e.preventDefault()
-    win.startDragging().catch((err) => console.error('拖动悬浮窗失败', err))
+    win.startDragging().catch((err) => console.error('Не удалось переместить окно субтитров', err))
   }
 
   const resize = (e: React.MouseEvent) => {
     if (e.button !== 0) return
     e.preventDefault()
-    win.startResizeDragging('SouthEast').catch((err) => console.error('缩放悬浮窗失败', err))
+    win.startResizeDragging('SouthEast').catch((err) => console.error('Не удалось изменить размер окна субтитров', err))
   }
 
   return (
@@ -84,7 +84,7 @@ function EditChrome() {
 
       <button
         type="button"
-        aria-label="移动悬浮窗"
+        aria-label="Переместить окно субтитров"
         onMouseDown={drag}
         className="absolute inset-x-0 top-0 z-10 flex h-4 cursor-move items-center justify-center border-0 bg-transparent p-0"
       >
@@ -93,7 +93,7 @@ function EditChrome() {
 
       <button
         type="button"
-        aria-label="调整悬浮窗大小"
+        aria-label="Изменить размер окна субтитров"
         onMouseDown={resize}
         className="absolute right-0 bottom-0 z-10 size-5 cursor-nwse-resize border-0 bg-transparent p-0"
       >
@@ -104,7 +104,7 @@ function EditChrome() {
 }
 
 const root = document.getElementById('overlay-root')
-if (!root) throw new Error('#overlay-root 未找到')
+if (!root) throw new Error('Элемент #overlay-root не найден')
 
 createRoot(root).render(
   <StrictMode>

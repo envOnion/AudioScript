@@ -1,57 +1,71 @@
 <div align="center">
-
 <img src="src-tauri/icons/128x128@2x.png" width="128" height="128" alt="AudioScript">
-
-<h1>AudioScript 声稿</h1>
-
-<p>监听系统声音输出，把外语播客与外文视频实时转成「原文 + 中文译文」双语悬浮字幕。识别与翻译全部在本机完成。</p>
-
-<p>
-  <a href="https://niyongsheng.github.io/AudioScript/">官网</a> ·
-  <a href="https://github.com/niyongsheng/AudioScript/releases/latest">下载</a>
-</p>
-
-<p>
-  <img src="https://img.shields.io/badge/macOS-14.2%2B-111111?style=flat-square&logo=apple&logoColor=white" alt="macOS 14.2+">
-  <img src="https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-555555?style=flat-square" alt="MIT"></a>
-</p>
-
+<h1>AudioScript</h1>
+<p>Офлайн-субтитры и перевод английский ↔ русский</p>
+<p><a href="https://github.com/envOnion/AudioScript/releases/latest">Скачать</a> · <a href="https://github.com/envOnion/AudioScript/issues">Сообщить о проблеме</a></p>
 </div>
 
-<br>
+AudioScript слушает системный звук, микрофон или оба источника и показывает оригинал и перевод в плавающем окне. Подходит для видео, лекций, подкастов и разговоров. Распознавание и перевод выполняются на устройстве; после установки сеть для них не нужна. Телеметрия отключена.
 
-https://github.com/user-attachments/assets/10649363-0b68-45f5-aa0b-97a9135dab53
+Это русская версия [AudioScript от niyongsheng](https://github.com/niyongsheng/AudioScript), выпущенная под той же лицензией MIT.
 
-## 功能
+## Возможности
 
-- **采集**：系统声音 / 麦克风 / 两者混合。
-- **实时离线**：sherpa-onnx 流式识别 + CTranslate2 opus-mt 翻译（en ↔ zh）
-- **字幕悬窗**：双语对照，字号 / 不透明度 / 行数可调
-- **常驻**：托盘、关窗不退出、单实例、开机自启。
+- Русский интерфейс, трей, уведомления, разрешения и Markdown-экспорт.
+- Два направления: **английский → русский** и **русский → английский**.
+- Потоковое распознавание sherpa-onnx: отдельные встроенные модели английского и русского языка.
+- Офлайн-перевод OPUS-MT / CTranslate2 с квантованием int8.
+- Двуязычные субтитры поверх окон; настройка размера, цвета и прозрачности.
+- Горячие клавиши, автозапуск, работа в трее и обновления из этого форка.
 
-## 隐私
+Распознанный текст появляется по мере речи. Перевод выполняется после завершения фразы — это субтитры с небольшой задержкой, зависящей от пауз, длины фразы и мощности компьютера.
 
-* 语音识别与转译全部在本机完成，离线可用。
-* Aptabase匿名使用统计，可在「通用 → 隐私」中关闭。
+## Установка
 
-## 构建
+Артефакты доступны в [GitHub Releases](https://github.com/envOnion/AudioScript/releases/latest):
+
+| Система | Файл |
+|---|---|
+| macOS 14.2+, Apple Silicon | `*_aarch64.dmg` |
+| macOS 14.2+, Intel | `*_x64.dmg` |
+| Windows 10/11, x64 | `*-setup.exe` или `*.msi` |
+| Ubuntu 24.04+, x64 | `*.deb` или `*.AppImage` |
+
+Для DEB: `sudo apt install ./AudioScript_*.deb`. Для AppImage: сделайте файл исполняемым (`chmod +x AudioScript_*.AppImage`) и запустите его. Для AppImage может понадобиться `libfuse2t64`.
+
+В macOS разрешите запись системного звука; микрофон нужен только для соответствующего источника. Разрешения проверяются из установленного `.app`, поскольку dev-бинарник не имеет описаний разрешений в Info.plist. В GNOME Wayland возможности размещения поверх окон ограничены композитором.
+
+Установщики не подписаны сертификатами Apple Developer / Windows Authenticode. Подпись обновлений Tauri проверяется отдельно; контрольные суммы загрузок находятся в `SHA256SUMS.txt`.
+
+## Разработка с Bun
+
+Нужны Bun 1.4.4, Node.js, Rust >= 1.90 и нативные инструменты платформы. В macOS: Xcode Command Line Tools и CMake (`xcode-select --install`, `brew install cmake`). Зависимости Ubuntu перечислены в `.github/workflows/build.yml`.
 
 ```bash
-pnpm install          # 依赖 + ASR 模型（≈ 58 MB）
-pnpm fetch:mt         # 模型拉取
-pnpm tauri dev        # 开发模式
-pnpm tauri build      # 打包
+bun install
+bun run fetch:mt
+bun tauri dev
+bun tauri build
 ```
 
+`bun install` скачивает проверенные модели распознавания. `fetch:mt` при первом запуске создаёт Python-окружение, скачивает исходные веса и конвертирует их в CTranslate2. Нужен Python >= 3.10; первая подготовка может занять несколько минут. Модели и кэш не входят в Git.
 
-## 联系我
+```bash
+bun run typecheck
+bunx biome check src/
+bun run verify:models
+node scripts/check-localization.mjs
+cargo test --manifest-path src-tauri/Cargo.toml
+```
 
-- X: [@niyongsheng](https://x.com/niyongsheng)
-- E‑mail: niyongsheng@Outlook.com
+`src/shared/types.ts` генерируется из Rust и хранится в репозитории. После изменения IPC-типов установите `cargo install typeshare-cli --version 1.13.4 --locked`, добавьте `~/.cargo/bin` в PATH и выполните `bun run gen:types`. Ручные изменения этого файла не допускаются.
 
-## 许可证
+macOS-сборка использует CI-режим упаковщика Tauri: оформление окна DMG через Finder пропускается, чтобы сборка не зависала в ожидании `.DS_Store`. `.app` и DMG создаются. Для исходного оформления можно задать `TAURI_BUNDLER_DMG_IGNORE_CI=true`.
 
-- [MIT](LICENSE)  
+## Релизы
 
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) Apache-2.0、[CTranslate2](https://github.com/OpenNMT/CTranslate2) MIT、[opus-mt](https://github.com/Helsinki-NLP)、[flexaudio](https://crates.io/crates/flexaudio) MIT、[tauri-nspanel](https://github.com/ahkohd/tauri-nspanel) MIT OR Apache-2.0
+GitHub Actions готовит языковые модели один раз, затем собирает приложения на Windows, macOS ARM/Intel и Ubuntu. Теги `v*` создают черновик релиза с установщиками, подписанными пакетами обновления, `latest.json` и SHA-256. Публикация — после проверки полного набора файлов. Обновления подписываются собственным ключом форка. Ключ можно хранить локально и подписывать загруженные артефакты перед публикацией; в CI поддерживается отдельный GitHub Secret `TAURI_SIGNING_PRIVATE_KEY`. При отсутствии секрета CI создаёт черновик без подписей и манифеста обновлений; публиковать его до локального подписания нельзя.
+
+## Лицензии и благодарности
+
+[MIT](LICENSE). Исходный AudioScript — niyongsheng. Распознавание: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), английская Zipformer и русская Vosk Zipformer. Перевод: [Helsinki-NLP / OPUS-MT](https://huggingface.co/Helsinki-NLP), `opus-mt-en-ru` (Apache-2.0) и `opus-mt-ru-en` (CC-BY-4.0). Атрибуция моделей включена в каталог приложения и `NOTICE.txt` рядом с весами. Движки: CTranslate2, flexaudio, Tauri и tauri-nspanel.

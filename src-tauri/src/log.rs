@@ -17,11 +17,16 @@ pub fn init(app: &AppHandle) -> PathBuf {
     let dir = app
         .path()
         .app_log_dir()
-        .inspect_err(|e| eprintln!("无法解析日志目录，回退到 {}：{e}", fallback.display()))
+        .inspect_err(|e| {
+            eprintln!(
+                "Не удалось определить папку журналов. Используется {}: {e}",
+                fallback.display()
+            )
+        })
         .unwrap_or_else(|_| fallback.clone());
 
     if let Err(e) = std::fs::create_dir_all(&dir) {
-        eprintln!("无法创建日志目录 {}：{e}", dir.display());
+        eprintln!("Не удалось создать папку журналов {}: {e}", dir.display());
         return dir;
     }
 
@@ -29,9 +34,8 @@ pub fn init(app: &AppHandle) -> PathBuf {
     let (writer, guard) = tracing_appender::non_blocking(file);
     app.manage(LogGuard(guard));
 
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("info,app_lib=debug")
-    });
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,app_lib=debug"));
 
     let file_layer = tracing_subscriber::fmt::layer()
         .with_writer(writer)
@@ -48,6 +52,6 @@ pub fn init(app: &AppHandle) -> PathBuf {
         .with(stderr_layer)
         .try_init();
 
-    tracing::info!(dir = %dir.display(), "日志已启动");
+    tracing::info!(dir = %dir.display(), "Запись журнала начата");
     dir
 }

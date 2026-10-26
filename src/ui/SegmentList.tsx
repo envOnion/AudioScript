@@ -50,7 +50,7 @@ const SegmentItem = memo(function SegmentItem({ seg }: { seg: TranscriptSegment 
       )}
 
       {seg.translationState === TranslationState.Failed && (
-        <p className="m-0 text-[0.78em] text-[var(--color-warn)] italic opacity-70">翻译失败</p>
+        <p className="m-0 text-[0.78em] text-[var(--color-warn)] italic opacity-70">Не удалось перевести</p>
       )}
     </li>
   )

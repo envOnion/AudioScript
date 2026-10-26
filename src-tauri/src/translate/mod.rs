@@ -1,28 +1,27 @@
 pub mod local_nmt;
 pub mod mock;
 pub mod queue;
-pub mod script;
 
 use crate::config::TranslateConfig;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TranslateError {
-    #[error("翻译引擎未初始化")]
+    #[error("Движок перевода не инициализирован")]
     NotInitialized,
 
-    #[error("模型加载失败：{0}")]
+    #[error("Не удалось загрузить модель: {0}")]
     ModelLoad(String),
 
-    #[error("模型目录缺少文件：{0}")]
+    #[error("В каталоге модели отсутствуют файлы: {0}")]
     MissingModelFile(String),
 
-    #[error("语言对不支持：{from} → {to}")]
+    #[error("Неподдерживаемое направление перевода: {from} → {to}")]
     UnsupportedPair { from: String, to: String },
 
-    #[error("译文无效（{reason}）：翻译方向可能设置错误")]
+    #[error("Некорректный перевод ({reason}); проверьте выбранное направление")]
     Degenerate { reason: String },
 
-    #[error("引擎内部错误：{0}")]
+    #[error("Внутренняя ошибка движка: {0}")]
     Internal(String),
 }
 
@@ -39,10 +38,10 @@ const TRAILING_RUN: usize = 4;
 pub fn degenerate_translation(text: &str) -> Option<String> {
     let t = text.trim();
     if t.is_empty() {
-        return Some("空译文".into());
+        return Some("Пустой перевод".into());
     }
     if let Some(m) = UNK_MARKERS.iter().find(|m| t.contains(**m)) {
-        return Some(format!("含 {m}"));
+        return Some(format!("Содержит {m}"));
     }
 
     let chars: Vec<char> = t.chars().filter(|c| !c.is_whitespace()).collect();
@@ -54,21 +53,27 @@ pub fn degenerate_translation(text: &str) -> Option<String> {
     for c in &chars {
         *counts.entry(*c).or_default() += 1;
     }
-    let (top, n) = counts.iter().map(|(c, n)| (*c, *n)).max_by_key(|(_, n)| *n)?;
+    let (top, n) = counts
+        .iter()
+        .map(|(c, n)| (*c, *n))
+        .max_by_key(|(_, n)| *n)?;
     let ratio = n as f32 / chars.len() as f32;
 
     if n == chars.len() {
-        return Some(format!("整串重复同一字符「{top}」×{n}"));
+        return Some(format!("Повторяется один символ «{top}» ×{n}"));
     }
 
     if chars.len() >= REPEAT_MIN_LEN && ratio >= REPEAT_RATIO {
-        return Some(format!("重复输出：「{top}」占 {:.0}%", ratio * 100.0));
+        return Some(format!(
+            "Повторение: символ «{top}» занимает {:.0}%",
+            ratio * 100.0
+        ));
     }
 
     if let Some(last) = chars.last() {
         let trailing = chars.iter().rev().take_while(|c| *c == last).count();
         if trailing >= TRAILING_RUN {
-            return Some(format!("尾部重复「{last}」×{trailing}"));
+            return Some(format!("Повторение в конце «{last}» ×{trailing}"));
         }
     }
 

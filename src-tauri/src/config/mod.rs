@@ -112,8 +112,8 @@ impl Default for AsrConfig {
     fn default() -> Self {
         Self {
             engine_type: EngineType::LocalStreaming,
-            source_lang: "zh".into(),
-            target_lang: "zh".into(),
+            source_lang: "en".into(),
+            target_lang: "ru".into(),
             model_dir: None,
             remote_api: None,
             endpoint: EndpointConfig::default(),
@@ -150,7 +150,6 @@ pub struct TranslateConfig {
     pub engine: TranslateEngine,
     pub source_lang: String,
     pub target_lang: String,
-    pub zh_script: ZhScript,
     pub model_dir: Option<String>,
 }
 
@@ -159,8 +158,7 @@ impl Default for TranslateConfig {
         Self {
             engine: TranslateEngine::default(),
             source_lang: "en".into(),
-            target_lang: "zh".into(),
-            zh_script: ZhScript::default(),
+            target_lang: "ru".into(),
             model_dir: None,
         }
     }
@@ -314,24 +312,6 @@ impl MtModelTier {
 
 #[typeshare]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum ZhScript {
-    #[default]
-    Simplified,
-    Traditional,
-}
-
-impl ZhScript {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Simplified => "simplified",
-            Self::Traditional => "traditional",
-        }
-    }
-}
-
-#[typeshare]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum Theme {
     #[default]
@@ -419,7 +399,6 @@ pub struct Preferences {
     pub device_id: Option<String>,
     pub translate_engine: TranslateEngine,
     pub source_lang: String,
-    pub zh_script: ZhScript,
     pub overlay: OverlayConfig,
     pub theme: Theme,
     pub sidebar_visible: bool,
@@ -439,7 +418,6 @@ impl Default for Preferences {
             device_id: None,
             translate_engine: TranslateEngine::default(),
             source_lang: "en".into(),
-            zh_script: ZhScript::default(),
             overlay: OverlayConfig::default(),
             theme: Theme::default(),
             sidebar_visible: true,
@@ -449,7 +427,7 @@ impl Default for Preferences {
             onboarding_done: false,
             asr_model_tier: AsrModelTier::default(),
             mt_model_tier: MtModelTier::default(),
-            analytics_enabled: true,
+            analytics_enabled: false,
         }
     }
 }
@@ -462,7 +440,6 @@ pub struct PrefsPatch {
     pub device_id: Option<String>,
     pub translate_engine: Option<TranslateEngine>,
     pub source_lang: Option<String>,
-    pub zh_script: Option<ZhScript>,
     pub endpoint: Option<EndpointConfig>,
     pub theme: Option<Theme>,
     pub sidebar_visible: Option<bool>,
@@ -476,12 +453,14 @@ impl PrefsPatch {
     pub fn validate(&self) -> Result<(), String> {
         if let Some(s) = &self.audio_source {
             if !matches!(s.as_str(), "mic" | "loopback" | "mix") {
-                return Err(format!("未知音源 {s}"));
+                return Err(format!("Неизвестный источник звука: {s}"));
             }
         }
         if let Some(s) = &self.source_lang {
-            if !matches!(s.as_str(), "en" | "zh") {
-                return Err(format!("未知源语言 {s}（auto 尚未实现）"));
+            if !matches!(s.as_str(), "en" | "ru") {
+                return Err(format!(
+                    "Неизвестный исходный язык: {s}. Выберите en или ru"
+                ));
             }
         }
         Ok(())
@@ -499,9 +478,6 @@ impl PrefsPatch {
         }
         if let Some(v) = self.source_lang {
             p.source_lang = v;
-        }
-        if let Some(v) = self.zh_script {
-            p.zh_script = v;
         }
         if let Some(v) = self.endpoint {
             p.endpoint = v;
@@ -534,9 +510,10 @@ impl Preferences {
         if !matches!(self.audio_source.as_str(), "mic" | "loopback" | "mix") {
             self.audio_source = d.audio_source;
         }
-        if !matches!(self.source_lang.as_str(), "en" | "zh") {
+        if !matches!(self.source_lang.as_str(), "en" | "ru") {
             self.source_lang = d.source_lang;
         }
+        self.analytics_enabled = false;
         self.device_id = self.device_id.filter(|s| !s.is_empty());
 
         self.endpoint = self.endpoint.sanitized();
@@ -559,20 +536,19 @@ impl Preferences {
     }
 }
 
-pub fn direction_label(source_lang: &str, zh_script: ZhScript) -> &'static str {
-    match (source_lang.starts_with("zh"), zh_script) {
-        (true, ZhScript::Traditional) => "繁体中文 → 英语",
-        (true, ZhScript::Simplified) => "简体中文 → 英语",
-        (false, ZhScript::Traditional) => "英语 → 繁体中文",
-        (false, ZhScript::Simplified) => "英语 → 简体中文",
+pub fn direction_label(source_lang: &str) -> &'static str {
+    if source_lang == "ru" {
+        "Русский → Английский"
+    } else {
+        "Английский → Русский"
     }
 }
 
 pub fn target_lang_for(source_lang: &str) -> &'static str {
-    if source_lang == "zh" {
+    if source_lang == "ru" {
         "en"
     } else {
-        "zh"
+        "ru"
     }
 }
 
@@ -657,7 +633,7 @@ mod tests {
             audio_source: "speaker".into(),
             device_id: Some("keep-me".into()),
             translate_engine: TranslateEngine::Off,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         }
         .sanitized();
@@ -665,7 +641,7 @@ mod tests {
         assert_eq!(p.audio_source, "loopback", "坏字段应回落");
         assert_eq!(p.device_id.as_deref(), Some("keep-me"), "好字段必须留下");
         assert_eq!(p.translate_engine, TranslateEngine::Off, "好字段必须留下");
-        assert_eq!(p.source_lang, "zh", "好字段必须留下");
+        assert_eq!(p.source_lang, "ru", "好字段必须留下");
     }
 
     #[test]
@@ -690,29 +666,25 @@ mod tests {
 
     #[test]
     fn target_lang_derivation_is_a_single_function() {
-        assert_eq!(target_lang_for("en"), "zh");
-        assert_eq!(target_lang_for("zh"), "en");
-        assert_eq!(target_lang_for("auto"), "zh");
+        assert_eq!(target_lang_for("en"), "ru");
+        assert_eq!(target_lang_for("ru"), "en");
+        assert_eq!(target_lang_for("auto"), "ru");
     }
 
     #[test]
-    fn direction_label_covers_all_four_directions() {
-        assert_eq!(
-            direction_label("en", ZhScript::Simplified),
-            "英语 → 简体中文"
-        );
-        assert_eq!(
-            direction_label("zh", ZhScript::Simplified),
-            "简体中文 → 英语"
-        );
-        assert_eq!(
-            direction_label("en", ZhScript::Traditional),
-            "英语 → 繁体中文"
-        );
-        assert_eq!(
-            direction_label("zh", ZhScript::Traditional),
-            "繁体中文 → 英语"
-        );
+    fn direction_label_covers_both_directions() {
+        assert_eq!(direction_label("en"), "Английский → Русский");
+        assert_eq!(direction_label("ru"), "Русский → Английский");
+    }
+
+    #[test]
+    fn legacy_chinese_preferences_migrate_to_english() {
+        let p: Preferences =
+            serde_json::from_str(r#"{"sourceLang":"zh","zhScript":"traditional"}"#).unwrap();
+        let p = p.sanitized();
+        assert_eq!(p.source_lang, "en");
+        assert_eq!(p.target_lang(), "ru");
+        assert!(!serde_json::to_string(&p).unwrap().contains("zhScript"));
     }
 
     #[test]
@@ -721,7 +693,7 @@ mod tests {
             audio_source: "mic".into(),
             device_id: Some("dev-1".into()),
             translate_engine: TranslateEngine::RemoteApi,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         };
         let json = serde_json::to_string(&p).unwrap();
@@ -748,7 +720,7 @@ mod tests {
                 },
             }),
             translate_engine: TranslateEngine::Off,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         };
 
@@ -760,7 +732,7 @@ mod tests {
         assert_eq!(p.overlay.font_size, 40, "调好的字号不能被会话启动冲掉");
         assert!(p.overlay_geometry.is_some(), "窗口位置不能被会话启动冲掉");
         assert_eq!(p.translate_engine, TranslateEngine::Off);
-        assert_eq!(p.source_lang, "zh");
+        assert_eq!(p.source_lang, "ru");
     }
 
     #[test]
@@ -880,13 +852,13 @@ mod tests {
     #[test]
     fn partial_session_config_parses_with_defaults() {
         let json = serde_json::json!({
-            "translate": { "engine": "local-nmt", "sourceLang": "zh", "targetLang": "en" }
+            "translate": { "engine": "local-nmt", "sourceLang": "ru", "targetLang": "en" }
         });
         let cfg: SessionConfig =
             serde_json::from_value(json).expect("缺少 asr 时应补默认，而不是拒绝整个对象");
 
         assert_eq!(cfg.translate.engine, TranslateEngine::LocalNmt);
-        assert_eq!(cfg.translate.source_lang, "zh");
+        assert_eq!(cfg.translate.source_lang, "ru");
         assert_eq!(cfg.asr, AsrConfig::default(), "缺的整块应回落默认");
     }
 
@@ -911,7 +883,7 @@ mod tests {
 
     #[test]
     fn unknown_field_is_ignored_not_rejected() {
-        let json = serde_json::json!({ "translate": { "source_lang": "zh" } });
+        let json = serde_json::json!({ "translate": { "source_lang": "ru" } });
         let cfg: SessionConfig = serde_json::from_value(json).expect("未知字段被忽略，不报错");
 
         assert_eq!(
@@ -970,7 +942,7 @@ mod tests {
                 font_size: 40,
                 ..Default::default()
             },
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         };
 
@@ -982,12 +954,12 @@ mod tests {
 
         assert_eq!(p.audio_source, "mic", "给的字段要生效");
         assert_eq!(p.overlay.font_size, 40, "没给的字段必须原样保留");
-        assert_eq!(p.source_lang, "zh", "没给的字段必须原样保留");
+        assert_eq!(p.source_lang, "ru", "没给的字段必须原样保留");
     }
 
     #[test]
-    fn analytics_defaults_on_and_patch_can_disable_it() {
-        assert!(Preferences::default().analytics_enabled);
+    fn analytics_defaults_off_and_patch_can_disable_it() {
+        assert!(!Preferences::default().analytics_enabled);
 
         let mut p = Preferences::default();
         PrefsPatch {
@@ -1022,7 +994,7 @@ mod tests {
 
         assert!(PrefsPatch {
             audio_source: Some("loopback".into()),
-            source_lang: Some("zh".into()),
+            source_lang: Some("ru".into()),
             ..Default::default()
         }
         .validate()

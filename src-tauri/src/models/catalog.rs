@@ -58,6 +58,8 @@ pub struct RequiredSpec {
 
 #[derive(Debug, Deserialize)]
 pub struct AsrRequired {
+    #[serde(default)]
+    pub languages: Vec<String>,
     pub encoder: String,
     pub decoder: String,
     pub joiner: String,
@@ -184,39 +186,56 @@ fn is_sha256(value: &str) -> bool {
 
 pub fn validate(c: &Catalog) -> Result<(), String> {
     if c.version != 1 {
-        return Err(format!("不支持的 catalog 版本 {}", c.version));
+        return Err(format!("Неподдерживаемая версия каталога: {}", c.version));
     }
 
     let mut ids = std::collections::HashSet::new();
     for m in &c.models {
         if !ids.insert(m.id.as_str()) {
-            return Err(format!("模型 id 重复：{}", m.id));
+            return Err(format!("Повторяющийся идентификатор модели: {}", m.id));
         }
         if !is_safe_relative(&m.install.dir) {
-            return Err(format!("模型 {} 的安装目录不安全：{}", m.id, m.install.dir));
+            return Err(format!(
+                "Небезопасный каталог установки модели {}: {}",
+                m.id, m.install.dir
+            ));
         }
-        if !m.bundled && m.install.directions.is_empty() && m.install.archive_roots.is_empty()
+        if !m.bundled
+            && m.install.directions.is_empty()
+            && m.install.archive_roots.is_empty()
             && m.install.archive_root.is_none()
         {
-            return Err(format!("模型 {} 既没有方向目录也没有归档根目录", m.id));
+            return Err(format!(
+                "У модели {} не заданы каталоги направлений или корень архива",
+                m.id
+            ));
         }
         if let Some(archive) = &m.archive {
             if !archive.url.starts_with("https://") {
-                return Err(format!("模型 {} 的下载地址必须是 HTTPS", m.id));
+                return Err(format!(
+                    "Адрес загрузки модели {} должен использовать HTTPS",
+                    m.id
+                ));
             }
             if m.downloadable {
                 if !is_sha256(&archive.sha256) {
-                    return Err(format!("模型 {} 的 SHA-256 未填写或格式错误", m.id));
+                    return Err(format!(
+                        "У модели {} отсутствует корректная контрольная сумма SHA-256",
+                        m.id
+                    ));
                 }
                 if archive.size_bytes == 0 || archive.max_extracted_bytes == 0 {
-                    return Err(format!("模型 {} 的归档体积未填写", m.id));
+                    return Err(format!("У модели {} не указан размер архива", m.id));
                 }
             }
             if m.id == "mt-big" && !archive.url.contains("/releases/download/models-v1/") {
-                return Err("mt-big 的下载地址必须位于 models-v1 release".into());
+                return Err("Адрес mt-big должен указывать на выпуск models-v1".into());
             }
         } else if m.downloadable {
-            return Err(format!("模型 {} 标记为可下载但没有归档信息", m.id));
+            return Err(format!(
+                "Модель {} помечена для загрузки, но сведения об архиве отсутствуют",
+                m.id
+            ));
         }
     }
 
@@ -232,7 +251,11 @@ pub fn validate(c: &Catalog) -> Result<(), String> {
             .filter(|m| m.kind == kind && m.tier == tier)
             .count();
         if count != 1 {
-            return Err(format!("{}/{} 档必须恰好有一个模型（当前 {count}）", kind.as_str(), tier));
+            return Err(format!(
+                "Для {}/{} требуется ровно одна модель (найдено {count})",
+                kind.as_str(),
+                tier
+            ));
         }
     }
 
@@ -251,7 +274,10 @@ mod tests {
     #[test]
     fn every_tier_has_an_entry() {
         assert_eq!(asr_entry(AsrModelTier::Builtin).id, "asr-builtin");
-        assert_eq!(asr_entry(AsrModelTier::HighAccuracy).id, "asr-high-accuracy");
+        assert_eq!(
+            asr_entry(AsrModelTier::HighAccuracy).id,
+            "asr-high-accuracy"
+        );
         assert_eq!(mt_entry(MtModelTier::Base).id, "mt-base");
         assert_eq!(mt_entry(MtModelTier::Big).id, "mt-big");
     }

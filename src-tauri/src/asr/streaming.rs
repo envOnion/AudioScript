@@ -33,8 +33,12 @@ impl Precision {
 }
 
 pub fn discover_model_files(dir: &Path) -> Result<ModelFiles, AsrError> {
-    let entries = std::fs::read_dir(dir)
-        .map_err(|e| AsrError::ModelLoad(format!("无法读取模型目录 {}：{e}", dir.display())))?;
+    let entries = std::fs::read_dir(dir).map_err(|e| {
+        AsrError::ModelLoad(format!(
+            "Не удалось прочитать каталог модели {}: {e}",
+            dir.display()
+        ))
+    })?;
 
     let names: Vec<String> = entries
         .filter_map(|e| e.ok())
@@ -54,11 +58,11 @@ pub fn discover_model_files(dir: &Path) -> Result<ModelFiles, AsrError> {
             .or_else(|| candidates.first())
             .ok_or_else(|| {
                 AsrError::MissingModelFile(format!(
-                    "{}/{}*.onnx\n目录实际内容：{}",
+                    "{}/{}*.onnx\nСодержимое каталога：{}",
                     dir.display(),
                     prefix,
                     if names.is_empty() {
-                        "(空)".to_string()
+                        "(пусто)".to_string()
                     } else {
                         names.join(", ")
                     }
@@ -71,7 +75,7 @@ pub fn discover_model_files(dir: &Path) -> Result<ModelFiles, AsrError> {
     let tokens = dir.join("tokens.txt");
     if !tokens.is_file() {
         return Err(AsrError::MissingModelFile(format!(
-            "{}\n目录实际内容：{}",
+            "{}\nСодержимое каталога：{}",
             tokens.display(),
             names.join(", ")
         )));
@@ -171,7 +175,7 @@ impl AsrEngine for StreamingAdapter {
         let dir = cfg
             .model_dir
             .as_ref()
-            .ok_or_else(|| AsrError::InvalidConfig("model_dir 未设置".into()))?;
+            .ok_or_else(|| AsrError::InvalidConfig("Каталог model_dir не задан".into()))?;
         let files = discover_model_files(Path::new(dir))?;
 
         let mut config = OnlineRecognizerConfig::default();
@@ -192,7 +196,7 @@ impl AsrEngine for StreamingAdapter {
 
         let recognizer = OnlineRecognizer::create(&config).ok_or_else(|| {
             AsrError::ModelLoad(format!(
-                "OnlineRecognizer::create 返回 None（模型目录 {}）",
+                "Не удалось создать потоковый движок (каталог модели {})",
                 Path::new(dir).display()
             ))
         })?;
@@ -362,5 +366,163 @@ mod tests {
         let c = a.capabilities();
         assert!(c.streaming && c.produces_partial && c.supports_endpoint);
         assert!(!c.requires_full_utterance);
+    }
+    #[test]
+    #[ignore = "Requires bundled ASR models and official samples in .cache/asr-canary"]
+    fn bundled_asr_audio_canary() {
+        let project = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        for language in ["en", "ru"] {
+            let bytes =
+                std::fs::read(project.join(format!(".cache/asr-canary/{language}.wav"))).unwrap();
+            assert_eq!(&bytes[0..4], b"RIFF");
+            assert_eq!(&bytes[8..12], b"WAVE");
+            let mut offset = 12;
+            let mut pcm = Vec::new();
+            while offset + 8 <= bytes.len() {
+                let size =
+                    u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()) as usize;
+                let start = offset + 8;
+                if &bytes[offset..offset + 4] == b"fmt " {
+                    assert_eq!(
+                        u16::from_le_bytes(bytes[start..start + 2].try_into().unwrap()),
+                        1
+                    );
+                    assert_eq!(
+                        u16::from_le_bytes(bytes[start + 2..start + 4].try_into().unwrap()),
+                        1
+                    );
+                    assert_eq!(
+                        u32::from_le_bytes(bytes[start + 4..start + 8].try_into().unwrap()),
+                        TARGET_SAMPLE_RATE
+                    );
+                    assert_eq!(
+                        u16::from_le_bytes(bytes[start + 14..start + 16].try_into().unwrap()),
+                        16
+                    );
+                }
+                if &bytes[offset..offset + 4] == b"data" {
+                    pcm.extend(
+                        bytes[start..start + size]
+                            .chunks_exact(2)
+                            .map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0),
+                    );
+                }
+                offset = start + size + size % 2;
+            }
+            assert!(!pcm.is_empty());
+            let mut engine = StreamingAdapter::new();
+            engine
+                .init(&AsrConfig {
+                    source_lang: language.into(),
+                    model_dir: Some(
+                        project
+                            .join(format!("src-tauri/assets/models/asr-builtin/{language}"))
+                            .to_string_lossy()
+                            .into_owned(),
+                    ),
+                    ..Default::default()
+                })
+                .unwrap();
+            let mut last = String::new();
+            let mut saw_partial = false;
+            let mut saw_endpoint = false;
+            let mut recognized = String::new();
+            for chunk in pcm.chunks(1600) {
+                for segment in engine.feed_pcm(chunk).unwrap() {
+                    saw_partial |= segment.state == crate::transcript::SegmentState::Partial;
+                    if segment.state == crate::transcript::SegmentState::Final {
+                        saw_endpoint = true;
+                        recognized.push_str(&segment.text);
+                        recognized.push(' ');
+                    }
+                    last = segment.text;
+                }
+            }
+            for _ in 0..30 {
+                for segment in engine.feed_pcm(&[0.0; 1600]).unwrap() {
+                    if segment.state == crate::transcript::SegmentState::Final {
+                        saw_endpoint = true;
+                        recognized.push_str(&segment.text);
+                        recognized.push(' ');
+                    }
+                    last = segment.text;
+                }
+            }
+            assert!(
+                saw_endpoint,
+                "Streaming silence did not trigger an endpoint"
+            );
+            for segment in engine.flush().unwrap() {
+                last = segment.text;
+            }
+            let text = if recognized.trim().is_empty() {
+                last.clone()
+            } else {
+                recognized.trim().to_owned()
+            };
+            println!("ASR {language}: {text} (streamed partial: {saw_partial}; endpoint: {saw_endpoint})");
+            assert!(saw_partial, "Streaming model did not emit a partial result");
+            assert!(
+                last.chars().filter(|c| c.is_alphabetic()).count() >= 8,
+                "{last}"
+            );
+            if language == "en" {
+                let reference = std::fs::read_to_string(project.join(".cache/asr-canary/en.txt"))
+                    .unwrap()
+                    .to_lowercase();
+                let expected = reference
+                    .lines()
+                    .find(|line| line.starts_with("0.wav") || line.starts_with("0 "))
+                    .unwrap_or_else(|| reference.lines().next().unwrap());
+                let words: Vec<_> = expected
+                    .split_whitespace()
+                    .skip(1)
+                    .filter(|word| word.len() >= 4)
+                    .collect();
+                let recognized = format!("{recognized} {last}").to_lowercase();
+                let hits = words
+                    .iter()
+                    .filter(|word| recognized.contains(**word))
+                    .count();
+                assert!(
+                    hits >= 3,
+                    "Too few reference words in {recognized}; expected {expected}"
+                );
+            }
+            if language == "ru" {
+                assert!(text.to_lowercase().contains("люблю"), "{text}");
+                assert!(last.chars().any(|c| ('а'..='я').contains(&c)), "{last}");
+            } else {
+                assert!(last.chars().any(|c| c.is_ascii_alphabetic()), "{last}");
+            }
+            engine.shutdown();
+            use crate::translate::Translator;
+            let target = crate::config::target_lang_for(language);
+            let mut translator = crate::translate::local_nmt::LocalNmt::new(
+                project.join("src-tauri/assets/models/mt"),
+                crate::config::MtModelTier::Base,
+            );
+            translator
+                .init(&crate::config::TranslateConfig {
+                    source_lang: language.into(),
+                    target_lang: target.into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            let translated = translator.translate(&text).unwrap();
+            println!("Audio → ASR → MT {language} → {target}: {translated}");
+            if target == "ru" {
+                assert!(
+                    translated.chars().any(|c| ('а'..='я').contains(&c)),
+                    "{translated}"
+                );
+            } else {
+                assert!(translated.to_lowercase().contains("love"), "{translated}");
+            }
+            translator.shutdown();
+        }
     }
 }

@@ -1,5 +1,4 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { setTrackingEnabled, track } from '@/shared/analytics'
 import {
   type AppInfo,
   AudioSourceKind,
@@ -38,7 +37,6 @@ import {
   updateCheck,
   updateInstall,
   updateRestart,
-  ZhScript,
 } from '@/shared/ipc'
 import { withTimeout } from '@/shared/timeout'
 import { TaskStatus } from '@/shared/types'
@@ -55,7 +53,6 @@ interface Store {
   device: string
   translateEngine: TranslateEngine
   sourceLang: string
-  zhScript: ZhScript
   theme: Theme
   endpoint: EndpointConfig
 
@@ -84,9 +81,6 @@ interface Store {
   onboardingDone: boolean
   completeOnboarding: () => Promise<void>
 
-  analyticsEnabled: boolean
-  setAnalyticsEnabled: (v: boolean) => void
-
   permissions: PermissionSnapshot | null
   refreshPermission: () => Promise<void>
   permissionError: CmdPermissionError | null
@@ -101,7 +95,7 @@ interface Store {
   setAudioSource: (v: AudioSourceKind) => void
   setDevice: (v: string) => void
   setTranslateEngine: (v: TranslateEngine) => void
-  setDirection: (lang: string, script: ZhScript) => void
+  setDirection: (lang: string) => void
   changeTheme: (v: Theme) => Promise<void>
   setEndpoint: (v: EndpointConfig) => Promise<void>
   updateOverlay: (patch: Partial<OverlayConfig>) => Promise<void>
@@ -118,7 +112,7 @@ const Ctx = createContext<Store | null>(null)
 
 export function useStore(): Store {
   const s = useContext(Ctx)
-  if (!s) throw new Error('useStore 必须在 <StoreProvider> 内使用')
+  if (!s) throw new Error('useStore должен вызываться внутри <StoreProvider>')
   return s
 }
 
@@ -130,7 +124,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [device, setDevice] = useState('')
   const [translateEngine, setTranslateEngine] = useState<TranslateEngine>(TranslateEngine.LocalNmt)
   const [sourceLang, setSourceLang] = useState('en')
-  const [zhScript, setZhScript] = useState(ZhScript.Simplified)
   const [theme, setTheme] = useState<Theme>(Theme.System)
   const [endpoint, setEndpoint] = useState<EndpointConfig>({
     trailingSilenceMs: 800,
@@ -151,7 +144,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hotkeyProblems, setHotkeyProblems] = useState<HotkeyFailure[]>([])
 
   const [onboardingDone, setOnboardingDone] = useState(false)
-  const [analyticsEnabled, setAnalyticsEnabledState] = useState(false)
   const [permissions, setPermissions] = useState<PermissionSnapshot | null>(null)
   const [permissionError, setPermissionError] = useState<CmdPermissionError | null>(null)
 
@@ -209,12 +201,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setAudioSource(p.audioSource as AudioSourceKind)
         setTranslateEngine(p.translateEngine)
         setSourceLang(p.sourceLang)
-        setZhScript(p.zhScript)
         setTheme(p.theme)
         setEndpoint(p.endpoint)
         setOnboardingDone(p.onboardingDone)
-        setAnalyticsEnabledState(p.analyticsEnabled)
-        setTrackingEnabled(p.analyticsEnabled)
         if (p.deviceId) setDevice(p.deviceId)
       })
       .catch(() => {})
@@ -275,22 +264,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOnboardingDone(true)
     try {
       await prefsSet({ onboardingDone: true })
-      track('onboarding_completed')
     } catch (e) {
       setError(formatCmdError(e))
     }
   }, [])
-
-  const setAnalyticsEnabled = useCallback(
-    (next: boolean) => {
-      if (!next) track('setting_changed', { key: 'analytics', value: 'off' })
-      setAnalyticsEnabledState(next)
-      setTrackingEnabled(next)
-      void patchPrefs({ analyticsEnabled: next })
-      if (next) track('setting_changed', { key: 'analytics', value: 'on' })
-    },
-    [patchPrefs],
-  )
 
   const refreshDevices = useCallback(async () => {
     try {
@@ -316,14 +293,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPermissionError(null)
     try {
       if (status === TaskStatus.Capturing) {
-        setStatus(await withTimeout(sessionStop(), STOP_TIMEOUT_MS, '停止请求超时：请重试，或使用托盘「停止转写」'))
+        setStatus(
+          await withTimeout(
+            sessionStop(),
+            STOP_TIMEOUT_MS,
+            'Не удалось дождаться остановки. Повторите попытку или выберите «Остановить запись» в области уведомлений',
+          ),
+        )
         setActiveDevice(null)
       } else {
         setStatus(
           await withTimeout(
-            sessionStart(device || undefined, translateEngine, sourceLang, zhScript, audioSource),
+            sessionStart(device || undefined, translateEngine, sourceLang, audioSource),
             START_TIMEOUT_MS,
-            '开始转写超时，请重试',
+            'Не удалось дождаться запуска записи. Повторите попытку',
           ),
         )
         setActiveDevice((await sessionStatus()).device ?? null)
@@ -344,7 +327,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pendingRef.current = false
       setPending(false)
     }
-  }, [status, device, translateEngine, sourceLang, zhScript, audioSource, refreshPermission])
+  }, [status, device, translateEngine, sourceLang, audioSource, refreshPermission])
 
   const clearAll = useCallback(async () => {
     await sessionClear()
@@ -383,7 +366,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (next: Theme) => {
       setTheme(next)
       await patchPrefs({ theme: next })
-      track('setting_changed', { key: 'theme', value: next })
     },
     [patchPrefs],
   )
@@ -393,7 +375,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAudioSource(v)
       setDevice('')
       void patchPrefs({ audioSource: v, deviceId: '' })
-      track('setting_changed', { key: 'audio_source', value: v })
     },
     [patchPrefs],
   )
@@ -410,17 +391,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (v: TranslateEngine) => {
       setTranslateEngine(v)
       void patchPrefs({ translateEngine: v })
-      track('setting_changed', { key: 'translate_engine', value: v })
     },
     [patchPrefs],
   )
 
   const changeDirection = useCallback(
-    (lang: string, script: ZhScript) => {
+    (lang: string) => {
       setSourceLang(lang)
-      setZhScript(script)
-      void patchPrefs({ sourceLang: lang, zhScript: script })
-      track('setting_changed', { key: 'translate_direction', value: `${lang}:${script}` })
+      void patchPrefs({ sourceLang: lang })
     },
     [patchPrefs],
   )
@@ -499,7 +477,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       device,
       translateEngine,
       sourceLang,
-      zhScript,
       theme,
       endpoint,
       status,
@@ -513,8 +490,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hotkeyProblems,
       onboardingDone,
       completeOnboarding,
-      analyticsEnabled,
-      setAnalyticsEnabled,
       permissions,
       refreshPermission,
       permissionError,
@@ -550,7 +525,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       device,
       translateEngine,
       sourceLang,
-      zhScript,
       theme,
       endpoint,
       status,
@@ -564,8 +538,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hotkeyProblems,
       onboardingDone,
       completeOnboarding,
-      analyticsEnabled,
-      setAnalyticsEnabled,
       permissions,
       refreshPermission,
       permissionError,

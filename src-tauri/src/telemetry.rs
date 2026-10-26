@@ -1,21 +1,9 @@
 use serde_json::Value;
 use tauri::AppHandle;
-use tauri_plugin_aptabase::EventTracker;
+// The Russian fork does not transmit analytics to the upstream developer.
+pub fn track(_app: &AppHandle, _event: &str, _props: Option<Value>) {}
 
-pub const APP_KEY: &str = "A-US-2179981546";
-
-pub fn track(app: &AppHandle, event: &str, props: Option<Value>) {
-    if !crate::prefs::load(app).analytics_enabled {
-        return;
-    }
-    if let Err(e) = app.track_event(event, props) {
-        tracing::debug!(event, "统计事件入队失败：{e}");
-    }
-}
-
-pub fn flush(app: &AppHandle) {
-    app.flush_events_blocking();
-}
+pub fn flush(_app: &AppHandle) {}
 
 pub fn duration_bucket(ms: u64) -> &'static str {
     match ms {

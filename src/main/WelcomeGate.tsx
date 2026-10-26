@@ -15,20 +15,24 @@ export function WelcomeGate() {
         <div className="w-full max-w-md space-y-6">
           <header className="space-y-3 pt-6 text-center">
             <LogoMark className="mx-auto block h-16 text-[var(--color-ink-0)] [&>svg]:block [&>svg]:h-full [&>svg]:w-auto" />
-            <h1 className="font-semibold text-[var(--color-ink-0)] text-xl">欢迎使用 {info?.name ?? 'AudioScript'}</h1>
-            <p className="text-[var(--color-ink-1)] text-sm">请先确认系统权限</p>
+            <h1 className="font-semibold text-[var(--color-ink-0)] text-xl">
+              Добро пожаловать в {info?.name ?? 'AudioScript'}
+            </h1>
+            <p className="text-[var(--color-ink-1)] text-sm">Проверьте системные разрешения</p>
           </header>
 
           <PermissionPanel />
 
           <div className="flex items-center justify-between gap-3">
-            <Button onClick={() => void completeOnboarding()}>稍后再说</Button>
+            <Button onClick={() => void completeOnboarding()}>Позже</Button>
             <Button variant="cta" onClick={() => void completeOnboarding()}>
-              开始使用
+              Начать работу
             </Button>
           </div>
 
-          <p className="text-center text-[var(--color-ink-2)] text-[0.7rem]">跳过之后可在「权限」页复查。</p>
+          <p className="text-center text-[var(--color-ink-2)] text-[0.7rem]">
+            Вернуться к проверке можно в разделе «Разрешения».
+          </p>
         </div>
       </div>
     </main>

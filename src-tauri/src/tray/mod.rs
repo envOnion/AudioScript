@@ -29,7 +29,7 @@ pub struct TrayState {
 }
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
-    let show_main = MenuItemBuilder::with_id(id::SHOW_MAIN, "显示主窗口").build(app)?;
+    let show_main = MenuItemBuilder::with_id(id::SHOW_MAIN, "Открыть главное окно").build(app)?;
 
     let capturing = app.state::<SessionState>().status() == TaskStatus::Capturing;
     let session_item =
@@ -41,11 +41,12 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     )
     .build(app)?;
 
-    let locked_item = CheckMenuItemBuilder::with_id(id::OVERLAY_LOCKED, "点击穿透（锁定）")
-        .checked(app.state::<overlay::OverlayState>().mode_is_click_through())
-        .build(app)?;
+    let locked_item =
+        CheckMenuItemBuilder::with_id(id::OVERLAY_LOCKED, "Пропускать нажатия мыши (закрепить)")
+            .checked(app.state::<overlay::OverlayState>().mode_is_click_through())
+            .build(app)?;
 
-    let quit = MenuItemBuilder::with_id(id::QUIT, "退出 AudioScript").build(app)?;
+    let quit = MenuItemBuilder::with_id(id::QUIT, "Выйти из AudioScript").build(app)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
@@ -64,7 +65,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
     let icon = TrayIconBuilder::with_id(TRAY_ID)
         .icon(tray_icon(app)?)
         .icon_as_template(true)
-        .tooltip("AudioScript 声稿")
+        .tooltip("AudioScript")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(on_menu_event)
@@ -83,17 +84,17 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 
 fn session_text(capturing: bool) -> &'static str {
     if capturing {
-        "停止转写"
+        "Остановить распознавание"
     } else {
-        "开始转写"
+        "Начать распознавание"
     }
 }
 
 fn visibility_text(visible: bool) -> &'static str {
     if visible {
-        "隐藏悬浮窗"
+        "Скрыть окно субтитров"
     } else {
-        "显示悬浮窗"
+        "Показать окно субтитров"
     }
 }
 
@@ -102,7 +103,7 @@ pub fn sync_mode(app: &AppHandle, mode: OverlayMode) {
         return;
     };
     if let Err(e) = state.locked_item.set_checked(mode.is_click_through()) {
-        tracing::error!("同步托盘勾选态失败：{e}");
+        tracing::error!("Не удалось обновить отметку в меню трея: {e}");
     }
 }
 
@@ -114,7 +115,7 @@ pub fn sync_task_state(app: &AppHandle, status: TaskStatus) {
         .session_item
         .set_text(session_text(status == TaskStatus::Capturing))
     {
-        tracing::error!("同步托盘转写项失败：{e}");
+        tracing::error!("Не удалось обновить пункт распознавания в меню трея: {e}");
     }
 }
 
@@ -123,7 +124,7 @@ pub fn sync_visibility(app: &AppHandle, visible: bool) {
         return;
     };
     if let Err(e) = state.visibility_item.set_text(visibility_text(visible)) {
-        tracing::error!("同步托盘悬浮窗项失败：{e}");
+        tracing::error!("Не удалось обновить пункт субтитров в меню трея: {e}");
     }
 }
 
@@ -134,10 +135,10 @@ fn tray_icon(app: &AppHandle) -> tauri::Result<tauri::image::Image<'static>> {
         return Ok(img);
     }
 
-    tracing::warn!("托盘模板图加载失败，退回应用图标（在菜单栏里可能显示异常）");
+    tracing::warn!("Не удалось загрузить значок трея. Используется значок приложения; в строке меню он может отображаться некорректно");
     let icon = app
         .default_window_icon()
-        .ok_or_else(|| tauri::Error::AssetNotFound("没有可用的托盘图标".into()))?;
+        .ok_or_else(|| tauri::Error::AssetNotFound("Значок трея недоступен".into()))?;
 
     Ok(tauri::image::Image::new_owned(
         icon.rgba().to_vec(),
@@ -154,8 +155,7 @@ fn start_session(app: &AppHandle) {
         "config": {
             "translate": {
                 "engine": p.translate_engine,
-                "sourceLang": p.source_lang,
-                "zhScript": p.zh_script
+                "sourceLang": p.source_lang
             }
         }
     });
@@ -163,8 +163,8 @@ fn start_session(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         match crate::commands::route_async(&app, "session_start", &args).await {
-            Ok(_) => tracing::info!("托盘：已开始转写"),
-            Err(e) => tracing::error!("托盘开始转写失败：{e}"),
+            Ok(_) => tracing::info!("Трей: распознавание запущено"),
+            Err(e) => tracing::error!("Не удалось запустить распознавание из трея: {e}"),
         }
     });
 }
@@ -175,8 +175,8 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
         id::TOGGLE_SESSION => {
             if app.state::<SessionState>().status() == TaskStatus::Capturing {
                 match crate::session::stop(app) {
-                    Ok(()) => tracing::info!("托盘：已请求停止转写"),
-                    Err(e) => tracing::error!("托盘停止转写失败：{e}"),
+                    Ok(()) => tracing::info!("Трей: запрошена остановка распознавания"),
+                    Err(e) => tracing::error!("Не удалось остановить распознавание из трея: {e}"),
                 }
             } else {
                 start_session(app);
@@ -203,7 +203,7 @@ fn on_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             }
         }
         id::QUIT => lifecycle::quit_app(app),
-        other => tracing::debug!("未处理的托盘菜单项：{other}"),
+        other => tracing::debug!("Необработанный пункт меню трея: {other}"),
     }
 }
 

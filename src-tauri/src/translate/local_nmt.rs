@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use ct2rs::tokenizers::hf::Tokenizer as HfTokenizer;
 
-use super::{script, TranslateCaps, TranslateError, Translator};
-use crate::config::{MtModelTier, TranslateConfig, ZhScript};
+use super::{TranslateCaps, TranslateError, Translator};
+use crate::config::{MtModelTier, TranslateConfig};
 use crate::models::catalog;
 
 const SOURCE_TOKENIZER: &str = "source-tokenizer.json";
@@ -43,29 +43,28 @@ impl ct2rs::Tokenizer for MarianTokenizer {
 pub struct LocalNmt {
     engine: Option<ct2rs::Translator<MarianTokenizer>>,
     direction: Direction,
-    script: ZhScript,
     tier: MtModelTier,
     model_root: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
-    EnZh,
-    ZhEn,
+    EnRu,
+    RuEn,
 }
 
 impl Direction {
     fn dir_name(self, tier: MtModelTier) -> &'static str {
         let dirs = catalog::mt_entry(tier).direction_dirs();
         match self {
-            Self::EnZh => dirs
+            Self::EnRu => dirs
                 .first()
                 .map(String::as_str)
-                .expect("catalog 缺少 en→zh 方向目录"),
-            Self::ZhEn => dirs
+                .expect("В каталоге отсутствует направление en→ru"),
+            Self::RuEn => dirs
                 .get(1)
                 .map(String::as_str)
-                .expect("catalog 缺少 zh→en 方向目录"),
+                .expect("В каталоге отсутствует направление ru→en"),
         }
     }
 
@@ -75,18 +74,18 @@ impl Direction {
 
         if from == "auto" {
             return Err(TranslateError::UnsupportedPair {
-                from: "auto（尚未实现，请显式指定源语言）".into(),
+                from: "auto (выберите исходный язык явно)".into(),
                 to: to.to_string(),
             });
         }
-        let from_is_en = from.starts_with("en");
-        let from_is_zh = from.starts_with("zh");
-        let to_is_zh = to.starts_with("zh");
-        let to_is_en = to.starts_with("en");
+        let from_is_en = from.split('-').next() == Some("en");
+        let from_is_ru = from.split('-').next() == Some("ru");
+        let to_is_ru = to.split('-').next() == Some("ru");
+        let to_is_en = to.split('-').next() == Some("en");
 
-        match (from_is_en || from_is_zh, to_is_zh, to_is_en) {
-            (true, true, _) if !from_is_zh => Ok(Self::EnZh),
-            (true, _, true) if !from_is_en => Ok(Self::ZhEn),
+        match (from_is_en || from_is_ru, to_is_ru, to_is_en) {
+            (true, true, _) if !from_is_ru => Ok(Self::EnRu),
+            (true, _, true) if !from_is_en => Ok(Self::RuEn),
             _ => Err(TranslateError::UnsupportedPair {
                 from: from.to_string(),
                 to: to.to_string(),
@@ -99,26 +98,9 @@ impl LocalNmt {
     pub fn new(model_root: PathBuf, tier: MtModelTier) -> Self {
         Self {
             engine: None,
-            direction: Direction::EnZh,
-            script: ZhScript::default(),
+            direction: Direction::EnRu,
             tier,
             model_root,
-        }
-    }
-
-    fn source_for_model(&self, text: &str) -> String {
-        if self.direction == Direction::ZhEn {
-            script::to_simplified(text)
-        } else {
-            text.to_string()
-        }
-    }
-
-    fn output_for_script(&self, text: String) -> String {
-        if self.direction == Direction::EnZh && self.script == ZhScript::Traditional {
-            script::to_traditional(&text)
-        } else {
-            text
         }
     }
 
@@ -128,13 +110,15 @@ impl LocalNmt {
 
     fn check_model_dir(dir: &Path, tier: MtModelTier) -> Result<(), TranslateError> {
         let remedy = match tier {
-            MtModelTier::Base => "→ 运行 `pnpm fetch:mt` 补齐内置翻译模型",
-            MtModelTier::Big => "→ 打开「模型」页下载大模型，或切换回基础模型",
+            MtModelTier::Base => {
+                "Запустите `bun run fetch:mt`, чтобы загрузить встроенные модели перевода"
+            }
+            MtModelTier::Big => "Выберите встроенный перевод на странице «Модели»",
         };
 
         if !dir.is_dir() {
             return Err(TranslateError::MissingModelFile(format!(
-                "{} 不存在。\n{remedy}",
+                "{} отсутствует.\n{remedy}",
                 dir.display()
             )));
         }
@@ -142,7 +126,7 @@ impl LocalNmt {
         for f in ["model.bin", SOURCE_TOKENIZER, TARGET_TOKENIZER] {
             if !dir.join(f).is_file() {
                 return Err(TranslateError::MissingModelFile(format!(
-                    "{}/{f} 不存在。\n{remedy}",
+                    "{}/{f} отсутствует.\n{remedy}",
                     dir.display()
                 )));
             }
@@ -154,7 +138,6 @@ impl LocalNmt {
 impl Translator for LocalNmt {
     fn init(&mut self, cfg: &TranslateConfig) -> Result<(), TranslateError> {
         self.direction = Direction::resolve(&cfg.source_lang, &cfg.target_lang)?;
-        self.script = cfg.zh_script;
 
         if let Some(dir) = &cfg.model_dir {
             self.model_root = dunce::simplified(Path::new(dir)).to_path_buf();
@@ -175,11 +158,11 @@ impl Translator for LocalNmt {
         self.engine = Some(engine);
 
         let warm = match self.direction {
-            Direction::EnZh => "hello",
-            Direction::ZhEn => "你好",
+            Direction::EnRu => "hello",
+            Direction::RuEn => "Привет",
         };
         if let Err(e) = self.translate(warm) {
-            tracing::warn!("翻译引擎预热返回异常（忽略）：{e}");
+            tracing::warn!("Ошибка при прогреве движка перевода: {e}");
         }
 
         Ok(())
@@ -192,7 +175,7 @@ impl Translator for LocalNmt {
     fn translate(&mut self, text: &str) -> Result<String, TranslateError> {
         let engine = self.engine.as_ref().ok_or(TranslateError::NotInitialized)?;
 
-        let sources = vec![self.source_for_model(text)];
+        let sources = vec![text.to_string()];
         let options = ct2rs::TranslationOptions {
             beam_size: 1,
             ..Default::default()
@@ -205,13 +188,13 @@ impl Translator for LocalNmt {
         let (translated, _) = results
             .into_iter()
             .next()
-            .ok_or_else(|| TranslateError::Internal("引擎返回了空结果".into()))?;
+            .ok_or_else(|| TranslateError::Internal("Движок вернул пустой результат".into()))?;
 
         if let Some(reason) = crate::translate::degenerate_translation(&translated) {
             return Err(TranslateError::Degenerate { reason });
         }
 
-        Ok(self.output_for_script(translated))
+        Ok(translated)
     }
 
     fn shutdown(&mut self) {
@@ -225,29 +208,29 @@ mod tests {
 
     #[test]
     fn direction_resolves_both_ways() {
-        assert_eq!(Direction::resolve("en", "zh").unwrap(), Direction::EnZh);
-        assert_eq!(Direction::resolve("zh", "en").unwrap(), Direction::ZhEn);
+        assert_eq!(Direction::resolve("en", "ru").unwrap(), Direction::EnRu);
+        assert_eq!(Direction::resolve("ru", "en").unwrap(), Direction::RuEn);
         assert!(matches!(
-            Direction::resolve("auto", "zh"),
+            Direction::resolve("auto", "ru"),
             Err(TranslateError::UnsupportedPair { .. })
         ));
         assert_eq!(
-            Direction::resolve("en-US", "zh-CN").unwrap(),
-            Direction::EnZh
+            Direction::resolve("en-US", "ru-RU").unwrap(),
+            Direction::EnRu
         );
     }
 
     #[test]
     fn unsupported_pairs_are_rejected_not_silently_defaulted() {
         assert!(matches!(
-            Direction::resolve("ja", "zh"),
+            Direction::resolve("ja", "ru"),
             Err(TranslateError::UnsupportedPair { .. })
         ));
         assert!(matches!(
             Direction::resolve("en", "fr"),
             Err(TranslateError::UnsupportedPair { .. })
         ));
-        assert!(Direction::resolve("zh", "zh").is_err());
+        assert!(Direction::resolve("ru", "ru").is_err());
     }
 
     #[test]
@@ -259,38 +242,27 @@ mod tests {
 
         let e =
             LocalNmt::check_model_dir(Path::new("/nonexistent/mt"), MtModelTier::Big).unwrap_err();
-        assert!(e.to_string().contains("模型"), "{e}");
+        assert!(e.to_string().contains("Модели"), "{e}");
     }
 
     #[test]
     fn tiers_map_to_their_direction_directories() {
-        assert_eq!(Direction::EnZh.dir_name(MtModelTier::Base), "opus-mt-en-zh-ct2");
-        assert_eq!(Direction::ZhEn.dir_name(MtModelTier::Base), "opus-mt-zh-en-ct2");
         assert_eq!(
-            Direction::EnZh.dir_name(MtModelTier::Big),
-            "opus-mt-tc-big-en-zh-ct2"
+            Direction::EnRu.dir_name(MtModelTier::Base),
+            "opus-mt-en-ru-ct2"
         );
         assert_eq!(
-            Direction::ZhEn.dir_name(MtModelTier::Big),
-            "opus-mt-tc-big-zh-en-ct2"
+            Direction::RuEn.dir_name(MtModelTier::Base),
+            "opus-mt-ru-en-ct2"
         );
-    }
-
-    #[test]
-    fn traditional_script_wraps_the_model_input_and_output() {
-        let mut t = LocalNmt::new(PathBuf::from("/tmp"), MtModelTier::Base);
-
-        t.script = ZhScript::Simplified;
-        t.direction = Direction::ZhEn;
-        assert_eq!(t.source_for_model("機器學習"), "机器学习");
-        t.direction = Direction::EnZh;
-        assert_eq!(t.output_for_script("机器学习".into()), "机器学习");
-
-        t.script = ZhScript::Traditional;
-        t.direction = Direction::ZhEn;
-        assert_eq!(t.source_for_model("機器學習"), "机器学习");
-        t.direction = Direction::EnZh;
-        assert_eq!(t.output_for_script("机器学习".into()), "機器學習");
+        assert_eq!(
+            Direction::EnRu.dir_name(MtModelTier::Big),
+            "opus-mt-tc-big-en-ru-ct2"
+        );
+        assert_eq!(
+            Direction::RuEn.dir_name(MtModelTier::Big),
+            "opus-mt-tc-big-ru-en-ct2"
+        );
     }
 
     #[test]
@@ -300,5 +272,35 @@ mod tests {
             t.translate("hello"),
             Err(TranslateError::NotInitialized)
         ));
+    }
+    #[test]
+    #[ignore = "Requires downloaded bundled translation models"]
+    fn bundled_translation_canary() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/models/mt");
+        let mut translator = LocalNmt::new(root, MtModelTier::Base);
+        for (source, target, text) in [
+            ("en", "ru", "The cat is sleeping."),
+            ("ru", "en", "Кошка спит."),
+        ] {
+            translator
+                .init(&TranslateConfig {
+                    source_lang: source.into(),
+                    target_lang: target.into(),
+                    ..Default::default()
+                })
+                .unwrap();
+            let output = translator.translate(text).unwrap();
+            println!("{source} → {target}: {text} => {output}");
+            let lower = output.to_lowercase();
+            if target == "ru" {
+                assert!(
+                    lower.contains("спит") && (lower.contains("кот") || lower.contains("кошк")),
+                    "{output}"
+                );
+            } else {
+                assert!(lower.contains("cat") && lower.contains("sleep"), "{output}");
+            }
+            translator.shutdown();
+        }
     }
 }

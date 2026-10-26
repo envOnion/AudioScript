@@ -19,8 +19,8 @@ export function OverlayPage() {
 
   if (!overlayCfg || !draft) {
     return (
-      <Page title="悬浮窗">
-        <p className="text-[var(--color-ink-2)] text-sm">读取配置中…</p>
+      <Page title="Окно субтитров">
+        <p className="text-[var(--color-ink-2)] text-sm">Загрузка настроек…</p>
       </Page>
     )
   }
@@ -35,28 +35,28 @@ export function OverlayPage() {
   }
 
   return (
-    <Page title="悬浮窗">
-      <SettingsGroup title="显示">
+    <Page title="Окно субтитров">
+      <SettingsGroup title="Отображение">
         <SettingsRow
           icon="overlay"
-          title={overlayVisible ? '隐藏悬浮窗' : '显示悬浮窗'}
-          control={<Button onClick={() => void toggleOverlay()}>{overlayVisible ? '隐藏' : '显示'}</Button>}
+          title={overlayVisible ? 'Скрыть субтитры' : 'Показать субтитры'}
+          control={<Button onClick={() => void toggleOverlay()}>{overlayVisible ? 'Скрыть' : 'Показать'}</Button>}
         />
         <SettingsRow
           icon="keyboard"
-          title="交互模式"
+          title="Режим взаимодействия"
           description={
             overlayCfg.mode === OverlayMode.Locked
-              ? '鼠标完全穿透，仅能通过快捷键或托盘菜单操作。'
-              : '可拖动、缩放、选中文字，会遮挡下层操作。'
+              ? 'Клики проходят сквозь окно. Управление — горячими клавишами или через область уведомлений.'
+              : 'Можно перемещать окно, менять его размер и выделять текст. Окно перехватывает клики.'
           }
           control={
             <Select
-              label="交互模式"
+              label="Режим взаимодействия"
               value={overlayCfg.mode}
               options={[
-                { value: OverlayMode.Locked, label: '锁定（穿透）' },
-                { value: OverlayMode.Edit, label: '编辑' },
+                { value: OverlayMode.Locked, label: 'Заблокировано (клики насквозь)' },
+                { value: OverlayMode.Edit, label: 'Редактирование' },
               ]}
               onChange={(v) => void overlaySetMode(v)}
             />
@@ -64,15 +64,18 @@ export function OverlayPage() {
         />
         <SettingsRow
           icon="check"
-          title="始终置顶"
-          unavailableReason={isMacOS ? 'macOS 上强制开启。' : undefined}
-          control={<span className="text-[var(--color-ink-2)] text-xs">已开启</span>}
+          title="Поверх всех окон"
+          unavailableReason={isMacOS ? 'В macOS всегда включено.' : undefined}
+          control={<span className="text-[var(--color-ink-2)] text-xs">Включено</span>}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="快捷键" footer="仅支持「修饰键 + 单键」组合，该类组合在 macOS 上无需辅助功能权限。">
+      <SettingsGroup
+        title="Горячие клавиши"
+        footer="Используйте сочетание клавиши с Ctrl, Alt, Shift или ⌘ либо функциональную клавишу. Доступ к универсальному доступу в macOS не требуется."
+      >
         {hotkeys.length === 0 ? (
-          <SettingsRow title="读取中…" />
+          <SettingsRow title="Загрузка…" />
         ) : (
           hotkeys.map((h) => (
             <SettingsRow
@@ -82,10 +85,12 @@ export function OverlayPage() {
               description={
                 h.registered ? (
                   h.customized ? (
-                    '已改过键位'
+                    'Сочетание изменено'
                   ) : undefined
                 ) : (
-                  <span className="text-[var(--color-warn)]">注册失败，可能已被其他应用占用</span>
+                  <span className="text-[var(--color-warn)]">
+                    Не удалось назначить: возможно, сочетание занято другим приложением
+                  </span>
                 )
               }
               control={<ShortcutRecorder pretty={h.acceleratorPretty} onRecord={(accel) => void rebind(h.id, accel)} />}
@@ -94,18 +99,18 @@ export function OverlayPage() {
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="外观" footer="仅背景透明，文字始终不透明。">
+      <SettingsGroup title="Внешний вид" footer="Прозрачность применяется только к фону; текст остаётся непрозрачным.">
         <SettingsRow
           icon="waveform"
-          title="字号"
+          title="Размер текста"
           control={
             <div className="w-56">
               <Slider
-                label="字号"
+                label="Размер текста"
                 value={draft.fontSize}
                 min={MIN_FONT_SIZE}
                 max={MAX_FONT_SIZE}
-                format={(v) => `${v} px`}
+                format={(v) => `${v} пкс`}
                 onChange={(v) => setDraft((d) => (d ? { ...d, fontSize: v } : d))}
                 onCommit={(v) => void updateOverlay({ fontSize: v })}
               />
@@ -114,12 +119,12 @@ export function OverlayPage() {
         />
         <SettingsRow
           icon="overlay"
-          title="背景不透明度"
-          description="过高会遮挡画面。"
+          title="Непрозрачность фона"
+          description="Высокое значение закрывает изображение под окном."
           control={
             <div className="w-56">
               <Slider
-                label="背景不透明度"
+                label="Непрозрачность фона"
                 value={draft.opacity}
                 min={0}
                 max={100}
@@ -132,16 +137,16 @@ export function OverlayPage() {
         />
         <SettingsRow
           icon="translate"
-          title="显示行数"
-          description="超出部分不可见。"
+          title="Число строк"
+          description="Остальные строки будут скрыты."
           control={
             <div className="w-56">
               <Slider
-                label="显示行数"
+                label="Число строк"
                 value={draft.maxLines}
                 min={1}
                 max={MAX_OVERLAY_LINES}
-                format={(v) => `${v} 行`}
+                format={(v) => `${v} стр.`}
                 onChange={(v) => setDraft((d) => (d ? { ...d, maxLines: v } : d))}
                 onCommit={(v) => void updateOverlay({ maxLines: v })}
               />
@@ -150,19 +155,23 @@ export function OverlayPage() {
         />
         <SettingsRow
           icon="brush"
-          title="文字颜色"
+          title="Цвет текста"
           control={<ColorField value={overlayCfg.fontColor} onCommit={(v) => void updateOverlay({ fontColor: v })} />}
         />
         <SettingsRow
           icon="sparkle"
-          title="彩虹边框"
+          title="Радужная рамка"
           control={
-            <Switch label="彩虹边框" checked={overlayCfg.glow} onChange={(v) => void updateOverlay({ glow: v })} />
+            <Switch
+              label="Радужная рамка"
+              checked={overlayCfg.glow}
+              onChange={(v) => void updateOverlay({ glow: v })}
+            />
           }
         />
         <SettingsRow
           icon="swatch"
-          title="背景颜色"
+          title="Цвет фона"
           control={<ColorField value={overlayCfg.bgColor} onCommit={(v) => void updateOverlay({ bgColor: v })} />}
         />
       </SettingsGroup>
@@ -200,7 +209,7 @@ function ColorField({ value, onCommit }: { value: string; onCommit: (v: string) 
     <div className="flex items-center gap-2">
       <input
         type="color"
-        aria-label="颜色"
+        aria-label="Цвет"
         value={local}
         onChange={(e) => {
           const next = e.target.value

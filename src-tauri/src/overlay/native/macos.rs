@@ -31,7 +31,7 @@ pub fn apply_overlay_panel_attributes(panel: &PanelHandle<tauri::Wry>) {
 
     let current_mask = ns_panel.styleMask();
     if let Err(e) = panel.set_style_mask(current_mask | NSWindowStyleMask::NonactivatingPanel) {
-        tracing::error!("设置 NonactivatingPanel 失败：{e:?}（点击悬浮窗会打断全屏播放）");
+        tracing::error!("Не удалось установить NonactivatingPanel: {e:?}. Нажатие на окно субтитров прервёт полноэкранное воспроизведение");
     }
 
     let current_behavior = ns_panel.collectionBehavior();
@@ -48,7 +48,7 @@ pub fn apply_overlay_panel_attributes(panel: &PanelHandle<tauri::Wry>) {
     tracing::debug!(
         level = overlay_level(),
         style_mask = ?current_mask,
-        "悬浮窗原生属性已应用"
+        "Системные свойства окна субтитров применены"
     );
 }
 

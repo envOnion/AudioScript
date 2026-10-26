@@ -45,7 +45,7 @@ export function StreamView({ segments, fontSize, fontColor, opacity, bgColor, gl
       >
         {segments.length === 0 ? (
           <p className="m-0 text-[0.8em]" style={{ color: fontColor, opacity: 0.45 }}>
-            等待识别…
+            Ожидание речи…
           </p>
         ) : (
           segments.map((s) => <BilingualSegment key={s.id} seg={s} />)
@@ -100,7 +100,7 @@ const BilingualSegment = memo(function BilingualSegment({ seg }: { seg: Transcri
       {seg.translationState === TranslationState.Done && seg.translation && <p className="m-0">{seg.translation}</p>}
       {seg.translationState === TranslationState.Failed && (
         <p className="m-0 opacity-40" style={{ fontSize: `${SOURCE_SCALE}em` }}>
-          <span className="italic">翻译失败</span>
+          <span className="italic">Не удалось перевести</span>
         </p>
       )}
     </div>

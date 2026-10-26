@@ -59,9 +59,11 @@ pub fn user_models_root(app: &AppHandle) -> Option<PathBuf> {
 }
 
 pub fn ensure_user_models_root(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = user_models_root(app)
-        .ok_or_else(|| "无法解析应用数据目录，不能保存下载的模型".to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("创建 {} 失败：{e}", dir.display()))?;
+    let dir = user_models_root(app).ok_or_else(|| {
+        "Не удалось определить каталог данных приложения для сохранения моделей".to_string()
+    })?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Не удалось создать {}: {e}", dir.display()))?;
     Ok(dir)
 }
 
@@ -112,15 +114,15 @@ fn first_existing(
         if path.is_dir() {
             return Ok(resolved(path, via));
         }
-        tried.push(format!("{} （不存在）", path.display()));
+        tried.push(format!("{} (отсутствует)", path.display()));
     }
 
     if tried.is_empty() {
-        tried.push("没有可用的候选目录".to_string());
+        tried.push("Нет доступных каталогов моделей".to_string());
     }
 
     Err(format!(
-        "找不到{what}。已尝试：\n  - {}\n\n{remedy}",
+        "Не найдено: {what}. Проверены каталоги:\n  - {}\n\n{remedy}",
         tried.join("\n  - ")
     ))
 }
@@ -161,20 +163,20 @@ pub fn locate_asr(
     let bundled = matches!(tier, AsrModelTier::Builtin);
     let remedy = if bundled {
         format!(
-            "→ 内置模型文件缺失：请重新安装应用；开发环境运行 `pnpm install`（或 `pnpm fetch:model`）后重启。\n\
-             （若设置了 {ENV_MODEL_DIR}，它也会被优先查找。）"
+            "Встроенные модели отсутствуют. Переустановите приложение; для разработки выполните `bun run fetch:model` и перезапустите.\n\
+             (Каталог {ENV_MODEL_DIR}, если задан, проверяется первым.)"
         )
     } else {
         format!(
-            "→ 打开「模型」页下载该模型，或切换回内置模型。\n\
-             （若设置了 {ENV_MODEL_DIR}，它也会被优先查找。）"
+            "Выберите встроенное распознавание на странице «Модели».\n\
+             (Каталог {ENV_MODEL_DIR}, если задан, проверяется первым.)"
         )
     };
     locate(
         roots,
         bundled,
         entry.installed_dir(),
-        format!("语音识别模型「{}」", entry.title),
+        format!("Модель распознавания «{}»", entry.title),
         remedy,
     )
 }
@@ -187,26 +189,27 @@ pub fn locate_mt_root(
     let bundled = matches!(tier, MtModelTier::Base);
     let remedy = if bundled {
         format!(
-            "→ 内置模型文件缺失：请重新安装应用；开发环境运行 `pnpm fetch:mt` 后重启。\n\
-             （若设置了 {ENV_MODEL_DIR}，它也会被优先查找。）"
+            "Встроенные модели отсутствуют. Переустановите приложение; для разработки выполните `bun run fetch:mt` и перезапустите.\n\
+             (Каталог {ENV_MODEL_DIR}, если задан, проверяется первым.)"
         )
     } else {
         format!(
-            "→ 打开「模型」页下载该模型，或切换回基础模型。\n\
-             （若设置了 {ENV_MODEL_DIR}，它也会被优先查找。）"
+            "Выберите встроенный перевод на странице «Модели».\n\
+             (Каталог {ENV_MODEL_DIR}, если задан, проверяется первым.)"
         )
     };
     locate(
         roots,
         bundled,
         entry.installed_dir(),
-        format!("翻译模型「{}」", entry.title),
+        format!("Модель перевода «{}»", entry.title),
         remedy,
     )
 }
 
 fn file_names(dir: &Path) -> Result<Vec<String>, String> {
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("无法读取 {}：{e}", dir.display()))?;
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| format!("Не удалось прочитать {}: {e}", dir.display()))?;
     Ok(entries
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_file())
@@ -225,13 +228,35 @@ fn matches_precision(name: &str, prefix: &str, precision: &str) -> bool {
 }
 
 pub fn missing_asr_files(dir: &Path, entry: &CatalogEntry) -> Result<Vec<String>, String> {
-    let names = file_names(dir)?;
     let req = entry
         .required
         .asr
         .as_ref()
-        .ok_or_else(|| format!("catalog 缺少 {} 的 ASR 文件要求", entry.id))?;
+        .ok_or_else(|| format!("В каталоге нет требований ASR для {}", entry.id))?;
+    if !req.languages.is_empty() {
+        let mut missing = Vec::new();
+        for language in &req.languages {
+            let child = dir.join(language);
+            if !child.is_dir() {
+                missing.push(format!("{language}/ (каталог отсутствует)"));
+                continue;
+            }
+            missing.extend(
+                missing_asr_language_files(&child, req)?
+                    .into_iter()
+                    .map(|f| format!("{language}/{f}")),
+            );
+        }
+        return Ok(missing);
+    }
+    missing_asr_language_files(dir, req)
+}
 
+fn missing_asr_language_files(
+    dir: &Path,
+    req: &catalog::AsrRequired,
+) -> Result<Vec<String>, String> {
+    let names = file_names(dir)?;
     let mut missing = Vec::new();
     for (prefix, precision) in [
         ("encoder", req.encoder.as_str()),
@@ -259,11 +284,14 @@ pub fn missing_mt_files(root: &Path, entry: &CatalogEntry) -> Result<Vec<String>
         .required
         .mt
         .as_ref()
-        .ok_or_else(|| format!("catalog 缺少 {} 的 MT 文件要求", entry.id))?;
+        .ok_or_else(|| format!("В каталоге отсутствуют требования MT для {}", entry.id))?;
 
     let directions = entry.direction_dirs();
     if directions.is_empty() {
-        return Err(format!("catalog 未给 {} 配置方向目录", entry.id));
+        return Err(format!(
+            "В каталоге для {} не заданы направления перевода",
+            entry.id
+        ));
     }
 
     let mut missing = Vec::new();
@@ -280,14 +308,14 @@ pub fn missing_mt_files(root: &Path, entry: &CatalogEntry) -> Result<Vec<String>
 
 pub fn model_dir_is_complete(dir: &Path) -> Result<(), String> {
     let entry = catalog::asr_entry(AsrModelTier::Builtin);
-    let missing = missing_asr_files(dir, entry)?;
+    let missing = missing_asr_language_files(dir, entry.required.asr.as_ref().unwrap())?;
     if missing.is_empty() {
         return Ok(());
     }
 
     let names = file_names(dir).unwrap_or_default();
     Err(format!(
-        "模型目录 {} 缺少：{}\n实际内容：{}",
+        "В каталоге модели {} отсутствуют: {}\nСодержимое: {}",
         dir.display(),
         missing.join(", "),
         names.join(", ")
@@ -304,7 +332,7 @@ pub fn log_startup_selfcheck(app: &AppHandle) {
                 tier = prefs.asr_model_tier.as_str(),
                 via = resolved.via.as_str(),
                 path = %resolved.path.display(),
-                "ASR 模型目录已解析"
+                "Определён каталог модели ASR"
             );
             match missing_asr_files(
                 &resolved.path,
@@ -312,7 +340,7 @@ pub fn log_startup_selfcheck(app: &AppHandle) {
             ) {
                 Ok(missing) if missing.is_empty() => {}
                 Ok(missing) => tracing::error!(
-                    "ASR 模型文件不完整，缺少：{}\n→ 打开「模型」页重新下载，或切换回内置模型",
+                    "Отсутствуют файлы ASR: {}\nВыберите встроенное распознавание на странице «Модели»",
                     missing.join(", ")
                 ),
                 Err(e) => tracing::error!("{e}"),
@@ -327,12 +355,12 @@ pub fn log_startup_selfcheck(app: &AppHandle) {
                 tier = prefs.mt_model_tier.as_str(),
                 via = resolved.via.as_str(),
                 path = %resolved.path.display(),
-                "翻译模型目录已解析"
+                "Определён каталог модели перевода"
             );
             match missing_mt_files(&resolved.path, catalog::mt_entry(prefs.mt_model_tier)) {
                 Ok(missing) if missing.is_empty() => {}
                 Ok(missing) => tracing::error!(
-                    "翻译模型文件不完整，缺少：{}\n→ 打开「模型」页重新下载，或切换回基础模型",
+                    "Отсутствуют файлы перевода: {}\nВыберите встроенный перевод на странице «Модели»",
                     missing.join(", ")
                 ),
                 Err(e) => tracing::error!("{e}"),
@@ -414,12 +442,18 @@ mod tests {
 
     #[test]
     fn builtin_prefers_env_over_bundled_and_dev() {
-        let env = root_with(catalog::asr_entry(AsrModelTier::Builtin).installed_dir(), &[]);
+        let env = root_with(
+            catalog::asr_entry(AsrModelTier::Builtin).installed_dir(),
+            &[],
+        );
         let bundled = root_with(
             catalog::asr_entry(AsrModelTier::Builtin).installed_dir(),
             &[],
         );
-        let dev = root_with(catalog::asr_entry(AsrModelTier::Builtin).installed_dir(), &[]);
+        let dev = root_with(
+            catalog::asr_entry(AsrModelTier::Builtin).installed_dir(),
+            &[],
+        );
         let roots = ModelSearchRoots {
             env: Some(env.clone()),
             bundled: Some(bundled),
@@ -469,12 +503,9 @@ mod tests {
         };
         let got = locate_asr(&roots, AsrModelTier::HighAccuracy).unwrap();
         assert!(got.path.starts_with(&user));
-        let missing = missing_asr_files(
-            &got.path,
-            catalog::asr_entry(AsrModelTier::HighAccuracy),
-        )
-        .unwrap();
-        assert!(missing.iter().any(|m| m.starts_with("encoder")), "{missing:?}");
+        let missing =
+            missing_asr_files(&got.path, catalog::asr_entry(AsrModelTier::HighAccuracy)).unwrap();
+        assert!(missing.iter().any(|m| m.starts_with("en/")), "{missing:?}");
         std::fs::remove_dir_all(&user).ok();
     }
 
@@ -486,8 +517,15 @@ mod tests {
             "joiner-x.int8.onnx",
             "tokens.txt",
         ]);
-        let missing =
-            missing_asr_files(&dir, catalog::asr_entry(AsrModelTier::Builtin)).unwrap();
+        let missing = missing_asr_language_files(
+            &dir,
+            catalog::asr_entry(AsrModelTier::Builtin)
+                .required
+                .asr
+                .as_ref()
+                .unwrap(),
+        )
+        .unwrap();
         assert!(missing.iter().any(|m| m.contains("encoder")), "{missing:?}");
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -497,7 +535,10 @@ mod tests {
         let entry = catalog::mt_entry(MtModelTier::Base);
         let root = std::env::temp_dir().join(format!("paths-mt-{}", uuid::Uuid::new_v4()));
         let missing = missing_mt_files(&root, entry).unwrap();
-        assert!(missing.iter().any(|m| m.contains("model.bin")), "{missing:?}");
+        assert!(
+            missing.iter().any(|m| m.contains("model.bin")),
+            "{missing:?}"
+        );
         assert!(
             missing.iter().all(|m| m.contains('/')),
             "必须带上方向目录：{missing:?}"

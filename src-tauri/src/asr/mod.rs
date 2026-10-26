@@ -10,16 +10,16 @@ pub mod latin_case;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AsrError {
-    #[error("引擎未初始化")]
+    #[error("Движок не инициализирован")]
     NotInitialized,
 
-    #[error("配置无效：{0}")]
+    #[error("Некорректные настройки: {0}")]
     InvalidConfig(String),
 
-    #[error("模型加载失败：{0}")]
+    #[error("Не удалось загрузить модель: {0}")]
     ModelLoad(String),
 
-    #[error("模型目录缺少文件：{0}")]
+    #[error("В каталоге модели отсутствуют файлы: {0}")]
     MissingModelFile(String),
 }
 

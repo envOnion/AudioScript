@@ -1,7 +1,7 @@
 [package]
 name = "audioscript"
-version = "0.2.10"
-description = "AudioScript 声稿 — 离线优先语音转写，带悬浮流式字幕窗"
+version = "0.3.0"
+description = "AudioScript — офлайн-субтитры и перевод английский ↔ русский"
 authors = ["Nico"]
 license = "MIT"
 edition = "2021"
@@ -70,7 +70,6 @@ tauri-plugin-dialog = "2"
 # 自动更新：构建时未设 TAURI_SIGNING_PRIVATE_KEY 不会产出带签名的更新包，CI 见 build.yml。
 tauri-plugin-updater = "2"
 # 匿名使用统计（Aptabase），事件全部由本项目显式上报，插件自身不采集任何东西。
-tauri-plugin-aptabase = "1.3"
 
 # 可选模型下载：阻塞式 HTTPS + 流式解压 + 校验（都已存在于 Cargo.lock）。
 ureq = { version = "2.12", default-features = false, features = ["tls", "gzip", "proxy-from-env"] }
@@ -78,7 +77,6 @@ tar = "0.4"
 flate2 = "1"
 bzip2 = "0.5"
 sha2 = "0.10"
-zhconv = { version = "0.4", features = ["opencc"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Apple Silicon 的推荐组合就是 accelerate + ruy。

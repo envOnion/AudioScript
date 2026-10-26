@@ -62,13 +62,17 @@ impl TranscriptSegment {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum StoreError {
-    #[error("段落 {id} 已冻结（当前状态 {current:?}），MUST NOT 被引擎输出覆盖")]
+    #[error(
+        "Фрагмент {id} зафиксирован (состояние {current:?}); движок не может его перезаписать"
+    )]
     FrozenSegment { id: String, current: SegmentState },
 
-    #[error("段落 {id} 尚未定稿（当前状态 {current:?}），不可编辑")]
+    #[error(
+        "Фрагмент {id} ещё не завершён (состояние {current:?}) и недоступен для редактирования"
+    )]
     NotFinalized { id: String, current: SegmentState },
 
-    #[error("段落 {id} 不存在")]
+    #[error("Фрагмент {id} не существует")]
     UnknownSegment { id: String },
 }
 
@@ -149,7 +153,7 @@ impl TranscriptStore {
                 seg.translation_state = TranslationState::Done;
             }
             Err(reason) => {
-                tracing::warn!(id, "翻译失败：{reason}");
+                tracing::warn!(id, "Не удалось перевести: {reason}");
                 seg.translation = None;
                 seg.translation_state = TranslationState::Failed;
             }
@@ -196,19 +200,32 @@ impl TranscriptStore {
     }
 }
 
-pub fn to_markdown(segments: &[TranscriptSegment], exported_at: &str, direction: Option<&str>) -> String {
-    let mut out = String::from("# AudioScript 转写记录\n\n");
-    out.push_str(&format!("- 导出时间：{exported_at}\n"));
+pub fn to_markdown(
+    segments: &[TranscriptSegment],
+    exported_at: &str,
+    direction: Option<&str>,
+) -> String {
+    let mut out = String::from("# Расшифровка AudioScript\n\n");
+    out.push_str(&format!("- Время экспорта: {exported_at}\n"));
     if let Some(d) = direction {
-        out.push_str(&format!("- 翻译方向：{d}\n"));
+        out.push_str(&format!("- Направление перевода: {d}\n"));
     }
 
     let settled: Vec<&TranscriptSegment> = segments.iter().filter(|s| s.is_persistable()).collect();
-    out.push_str(&format!("- 段落数：{}\n\n---\n\n", settled.len()));
+    out.push_str(&format!("- Число фрагментов: {}\n\n---\n\n", settled.len()));
 
     for s in settled {
-        out.push_str(&format!("**[{}]** {}\n\n", clock(s.start_ms), s.text.trim()));
-        if let Some(t) = s.translation.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
+        out.push_str(&format!(
+            "**[{}]** {}\n\n",
+            clock(s.start_ms),
+            s.text.trim()
+        ));
+        if let Some(t) = s
+            .translation
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+        {
             out.push_str(&format!("> {t}\n\n"));
         }
     }
@@ -451,21 +468,25 @@ mod tests {
     fn markdown_excludes_partial_and_quotes_translation() {
         let mut s = TranscriptStore::new();
         s.apply(vec![
-            seg("a", "已经定稿的一句。", SegmentState::Final, 1),
-            seg("b", "还在改写中", SegmentState::Partial, 1),
+            seg("a", "A finished sentence.", SegmentState::Final, 1),
+            seg("b", "Still being rewritten", SegmentState::Partial, 1),
         ])
         .unwrap();
         s.mark_pending_translation(&["a".to_string()]);
-        s.set_translation("a", Ok("A finished sentence.".into()))
+        s.set_translation("a", Ok("Завершённое предложение.".into()))
             .unwrap();
 
-        let md = to_markdown(s.snapshot(), "2026-10-16 10:23", Some("英语 → 中文"));
+        let md = to_markdown(
+            s.snapshot(),
+            "2026-10-16 10:23",
+            Some("Английский → русский"),
+        );
 
-        assert!(md.contains("**[00:00]** 已经定稿的一句。"));
-        assert!(md.contains("> A finished sentence."), "译文应引作注解");
-        assert!(!md.contains("还在改写中"), "partial 不该进导出");
-        assert!(md.contains("- 翻译方向：英语 → 中文"));
-        assert!(md.contains("- 段落数：1"));
+        assert!(md.contains("**[00:00]** A finished sentence."));
+        assert!(md.contains("> Завершённое предложение."), "译文应引作注解");
+        assert!(!md.contains("Still being rewritten"), "partial 不该进导出");
+        assert!(md.contains("- Направление перевода: Английский → русский"));
+        assert!(md.contains("- Число фрагментов: 1"));
     }
 
     #[test]
@@ -475,7 +496,10 @@ mod tests {
             .unwrap();
 
         let md = to_markdown(s.snapshot(), "2026-10-16 10:23", None);
-        assert!(!md.contains("翻译方向"), "关了翻译就不该编出一行方向");
+        assert!(
+            !md.contains("Направление перевода"),
+            "关了翻译就不该编出一行方向"
+        );
         assert!(md.contains("只有原文"));
     }
 

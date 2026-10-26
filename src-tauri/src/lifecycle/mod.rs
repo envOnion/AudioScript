@@ -27,7 +27,7 @@ fn set_dock_visible(app: &AppHandle, visible: bool) {
         tauri::ActivationPolicy::Accessory
     };
     if let Err(e) = app.set_activation_policy(policy) {
-        tracing::error!(visible, "切换激活策略失败：{e}");
+        tracing::error!(visible, "Не удалось изменить политику активации: {e}");
     }
 }
 
@@ -36,18 +36,18 @@ pub fn show_main(app: &AppHandle) {
     set_dock_visible(app, true);
 
     let Some(window) = app.get_webview_window(MAIN_LABEL) else {
-        tracing::error!("找不到主窗口（label={MAIN_LABEL}）");
+        tracing::error!("Главное окно не найдено (label={MAIN_LABEL})");
         return;
     };
 
     let _ = window.unminimize();
     if let Err(e) = window.show().and_then(|_| window.set_focus()) {
-        tracing::error!("唤回主窗口失败：{e}");
+        tracing::error!("Не удалось открыть главное окно: {e}");
     }
 }
 
 pub fn quit_app(app: &AppHandle) {
-    tracing::info!("用户请求退出（唯一退出路径）");
+    tracing::info!("Пользователь запросил выход (единственный путь завершения)");
     if let Some(state) = app.try_state::<LifecycleState>() {
         state.mark_quitting();
     }
@@ -72,7 +72,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     api.prevent_close();
 
     if let Err(e) = window.hide() {
-        tracing::error!(label = window.label(), "隐藏窗口失败：{e}");
+        tracing::error!(label = window.label(), "Не удалось скрыть окно: {e}");
     } else {
         #[cfg(target_os = "macos")]
         {
@@ -80,7 +80,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
                 set_dock_visible(window.app_handle(), false);
             }
         }
-        tracing::debug!(label = window.label(), "窗口已收进托盘");
+        tracing::debug!(label = window.label(), "Окно свёрнуто в трей");
     }
 }
 
@@ -91,7 +91,7 @@ pub fn on_run_event(app: &AppHandle, event: &tauri::RunEvent) -> bool {
             .map(|s| s.is_quitting())
             .unwrap_or(false);
         if !quitting {
-            tracing::debug!("拦下退出请求（后台常驻中）");
+            tracing::debug!("Запрос выхода перехвачен: приложение продолжает работать в фоне");
             return true;
         }
     }

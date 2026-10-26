@@ -47,7 +47,7 @@ export function Slider({
       {defaultValue !== undefined && (
         <button
           type="button"
-          aria-label={`${label} 恢复默认`}
+          aria-label={`${label} Сбросить`}
           disabled={disabled || !dirty}
           onClick={() => {
             onChange(defaultValue)

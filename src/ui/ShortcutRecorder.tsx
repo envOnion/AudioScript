@@ -56,15 +56,15 @@ export function ShortcutRecorder({ pretty, onRecord }: Props) {
             : 'border-[var(--color-border-subtle)] text-[var(--color-ink-1)]',
         )}
       >
-        {recording ? '按下组合键…' : pretty}
+        {recording ? 'Нажмите сочетание…' : pretty}
       </span>
       {recording ? (
         <Button size="sm" onClick={() => setRecording(false)}>
-          取消
+          Отмена
         </Button>
       ) : (
         <Button size="sm" onClick={() => setRecording(true)}>
-          修改
+          Изменить
         </Button>
       )}
     </div>

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@/main/store'
-import { track } from '@/shared/analytics'
 import { autostartGet, autostartSet, formatCmdError, logsExport, prefsReset, revealPath, Theme } from '@/shared/ipc'
 import { Alert } from '@/ui/Alert'
 import { Button } from '@/ui/Button'
@@ -10,13 +9,13 @@ import { SettingsGroup, SettingsRow } from '@/ui/Settings'
 import { Switch } from '@/ui/Switch'
 
 const THEME_OPTIONS = [
-  { value: Theme.System, label: '跟随系统' },
-  { value: Theme.Light, label: '浅色' },
-  { value: Theme.Dark, label: '深色' },
+  { value: Theme.System, label: 'Как в системе' },
+  { value: Theme.Light, label: 'Светлая' },
+  { value: Theme.Dark, label: 'Тёмная' },
 ]
 
 export function GeneralPage() {
-  const { theme, changeTheme, prefsReady, analyticsEnabled, setAnalyticsEnabled, setError } = useStore()
+  const { theme, changeTheme, setError } = useStore()
 
   const [autostart, setAutostart] = useState<boolean | null>(null)
   const [confirmingReset, setConfirmingReset] = useState(false)
@@ -33,7 +32,6 @@ export function GeneralPage() {
     try {
       const s = await autostartSet(next)
       setAutostart(s.enabled)
-      track('setting_changed', { key: 'autostart', value: s.enabled ? 'on' : 'off' })
     } catch (e) {
       setError(formatCmdError(e))
     }
@@ -44,7 +42,7 @@ export function GeneralPage() {
     setNote(null)
     try {
       await prefsReset()
-      setNote('已恢复默认设置。部分改动需重启应用生效。')
+      setNote('Настройки сброшены. Для некоторых изменений нужен перезапуск приложения.')
     } catch (e) {
       setError(formatCmdError(e))
     } finally {
@@ -59,7 +57,7 @@ export function GeneralPage() {
     try {
       const { path } = await logsExport()
       await revealPath(path)
-      setNote(`日志已导出到 ${path}`)
+      setNote(`Журнал сохранён в ${path}`)
     } catch (e) {
       setError(formatCmdError(e))
     } finally {
@@ -68,26 +66,26 @@ export function GeneralPage() {
   }
 
   return (
-    <Page title="通用">
+    <Page title="Общие">
       {note && <Alert tone="info">{note}</Alert>}
 
-      <SettingsGroup title="外观">
+      <SettingsGroup title="Внешний вид">
         <SettingsRow
           icon="settings"
-          title="主题"
-          description="悬浮窗始终为深色。"
-          control={<Select label="主题" value={theme} options={THEME_OPTIONS} onChange={(v) => void changeTheme(v)} />}
+          title="Тема"
+          description="Окно субтитров всегда использует тёмную тему."
+          control={<Select label="Тема" value={theme} options={THEME_OPTIONS} onChange={(v) => void changeTheme(v)} />}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="启动">
+      <SettingsGroup title="Запуск">
         <SettingsRow
           icon="play"
-          title="登录时启动"
-          description="关闭主窗口后应用继续驻留托盘。"
+          title="Запускать при входе"
+          description="После закрытия главного окна приложение остаётся в области уведомлений."
           control={
             <Switch
-              label="登录时启动"
+              label="Запускать при входе"
               checked={autostart === true}
               disabled={autostart === null}
               onChange={(v) => void toggleAutostart(v)}
@@ -96,59 +94,51 @@ export function GeneralPage() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="隐私" footer="统计仅包含事件名与少量枚举属性，不含转写文本、设备名称或文件路径。">
+      <SettingsGroup title="Конфиденциальность">
         <SettingsRow
           icon="shield"
-          title="匿名使用统计"
-          description="通过 Aptabase 发送功能使用情况，帮助改进 AudioScript。"
-          control={
-            <Switch
-              label="匿名使用统计"
-              checked={analyticsEnabled}
-              disabled={!prefsReady}
-              onChange={setAnalyticsEnabled}
-            />
-          }
+          title="Обработка на устройстве"
+          description="Аудио и тексты обрабатываются на устройстве. Телеметрия отключена."
         />
       </SettingsGroup>
 
-      <SettingsGroup title="诊断">
+      <SettingsGroup title="Диагностика">
         <SettingsRow
           icon="folder"
-          title="导出日志"
-          description="复制到桌面并以日期命名，随后自动打开。"
+          title="Экспорт журнала"
+          description="Сохраняет журнал на рабочий стол с датой в имени и открывает его папку."
           control={
             <Button icon="external" size="sm" disabled={busy} onClick={() => void doExportLogs()}>
-              导出
+              Экспорт
             </Button>
           }
         />
         <SettingsRow
           icon="folder"
-          title="打开日志文件夹"
-          description="直接定位到原始日志目录。"
+          title="Открыть папку журналов"
+          description="Открывает папку с исходными журналами."
           onClick={() => void revealPath().catch((e) => setError(formatCmdError(e)))}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="设置管理">
+      <SettingsGroup title="Управление настройками">
         <SettingsRow
           icon="reset"
-          title="重置所有设置"
-          description="清除全部设置，不可撤销。下次启动会重新显示欢迎页。"
+          title="Сбросить все настройки"
+          description="Все настройки будут удалены без возможности отмены. При следующем запуске откроется приветствие."
           control={
             confirmingReset ? (
               <div className="flex gap-1.5">
                 <Button variant="danger" size="sm" disabled={busy} onClick={() => void doReset()}>
-                  确认重置
+                  Подтвердить сброс
                 </Button>
                 <Button size="sm" onClick={() => setConfirmingReset(false)}>
-                  取消
+                  Отмена
                 </Button>
               </div>
             ) : (
               <Button variant="danger" size="sm" onClick={() => setConfirmingReset(true)}>
-                重置
+                Сбросить
               </Button>
             )
           }

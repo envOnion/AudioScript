@@ -154,11 +154,6 @@ export enum TranslateEngine {
 	Mock = "mock",
 }
 
-export enum ZhScript {
-	Simplified = "simplified",
-	Traditional = "traditional",
-}
-
 export enum Theme {
 	System = "system",
 	Light = "light",
@@ -195,7 +190,6 @@ export interface Preferences {
 	deviceId?: string;
 	translateEngine: TranslateEngine;
 	sourceLang: string;
-	zhScript: ZhScript;
 	overlay: OverlayConfig;
 	theme: Theme;
 	sidebarVisible: boolean;
@@ -213,7 +207,6 @@ export interface PrefsPatch {
 	deviceId?: string;
 	translateEngine?: TranslateEngine;
 	sourceLang?: string;
-	zhScript?: ZhScript;
 	endpoint?: EndpointConfig;
 	theme?: Theme;
 	sidebarVisible?: boolean;
@@ -227,7 +220,6 @@ export interface TranslateConfig {
 	engine: TranslateEngine;
 	sourceLang: string;
 	targetLang: string;
-	zhScript: ZhScript;
 	modelDir?: string;
 }
 

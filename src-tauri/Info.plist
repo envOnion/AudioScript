@@ -13,7 +13,7 @@
       也是用户决定是否授权的关键信息。
     -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>AudioScript 需要使用麦克风进行实时语音转写。音频仅在本机由离线模型处理，不会上传到任何服务器。</string>
+    <string>AudioScript использует микрофон для распознавания речи в реальном времени. Звук обрабатывается локальными моделями на этом устройстве и не отправляется на серверы.</string>
 
     <!--
       系统声音录制权限说明（Core Audio Process Tap 走的就是这条）。
@@ -29,7 +29,7 @@
       所以授权与否只能靠「权限」页的功能自测来判定。
     -->
     <key>NSAudioCaptureUsageDescription</key>
-    <string>AudioScript 需要录制系统声音，才能把正在播放的视频或播客实时转成字幕。音频仅在本机由离线模型处理，不会上传到任何服务器。</string>
+    <string>AudioScript записывает системный звук, чтобы показывать субтитры к видео и подкастам в реальном времени. Звук обрабатывается локальными моделями на этом устройстве и не отправляется на серверы.</string>
 
     <!--
       仍未加：NSSpeechRecognitionUsageDescription —— V0.2 接入 macOS SFSpeech 时才需要。

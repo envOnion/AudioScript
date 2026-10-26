@@ -94,7 +94,7 @@ function rewrite(version) {
 function main() {
   const raw = process.argv[2]
   if (!raw) {
-    fail('用法：pnpm release <0.2.0 | patch | minor | major>')
+    fail('用法：bun run release <0.2.0 | patch | minor | major>')
   }
 
   const dirty = git(['status', '--porcelain'])
@@ -141,8 +141,8 @@ function main() {
 
     try {
       process.stdout.write('\n🔍 跑检查…\n')
-      run('pnpm', ['typecheck'])
-      run('pnpm', ['lint'])
+      run('bun', ['run', 'typecheck'])
+      run('bun', ['run', 'lint'])
       run('cargo', ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--quiet'])
     } catch {
       git(['checkout', '--', ...FILES])

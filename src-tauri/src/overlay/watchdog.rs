@@ -15,13 +15,16 @@ pub fn start(app: AppHandle) {
     std::thread::Builder::new()
         .name("overlay-watchdog".into())
         .spawn(move || {
-            tracing::debug!("悬浮窗自检循环已启动（间隔 {:?}）", CHECK_INTERVAL);
+            tracing::debug!(
+                "Запущена самопроверка окна субтитров (интервал {:?})",
+                CHECK_INTERVAL
+            );
             while RUNNING.load(Ordering::SeqCst) {
                 std::thread::sleep(CHECK_INTERVAL);
 
                 let handle = app.clone();
                 if let Err(e) = app.run_on_main_thread(move || check_and_repair(&handle)) {
-                    tracing::warn!("自检无法投递到主线程：{e}");
+                    tracing::warn!("Не удалось передать самопроверку в главный поток: {e}");
                 }
             }
         })
@@ -45,7 +48,7 @@ fn check_and_repair(app: &AppHandle) {
 
     let on_space = crate::overlay::native::macos::on_active_space(panel);
     if !on_space {
-        tracing::info!("悬浮窗掉出了当前 Space，重新断言原生属性");
+        tracing::info!("Окно субтитров покинуло текущее рабочее пространство. Повторно применяем системные свойства");
         crate::overlay::native::macos::apply_overlay_panel_attributes(panel);
     }
 
@@ -58,7 +61,7 @@ fn repair_frame_if_offscreen(panel: &tauri_nspanel::PanelHandle<tauri::Wry>, lab
 
     let screens = tauri_nspanel::objc2_app_kit::NSScreen::screens(
         tauri_nspanel::objc2_foundation::MainThreadMarker::new()
-            .expect("check_and_repair 必须在主线程调用"),
+            .expect("check_and_repair необходимо вызывать в главном потоке"),
     );
 
     let mut intersects_any = false;
@@ -89,6 +92,6 @@ fn repair_frame_if_offscreen(panel: &tauri_nspanel::PanelHandle<tauri::Wry>, lab
     ns_panel.setFrameOrigin(tauri_nspanel::objc2_foundation::NSPoint { x, y });
     tracing::warn!(
         label,
-        "悬浮窗原先完全在屏幕之外（多半是显示器拓扑变了），已搬回主屏"
+        "Окно субтитров находилось за пределами экранов, вероятно из-за изменения их расположения. Оно возвращено на основной экран"
     );
 }

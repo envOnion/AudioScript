@@ -8,9 +8,8 @@ import { Page } from '@/ui/Page'
 import { ProgressBar } from '@/ui/ProgressBar'
 import { SettingsGroup, SettingsRow } from '@/ui/Settings'
 
-const SITE_URL = 'https://niyongsheng.github.io/AudioScript/'
-
-const AFDIAN_BADGE = 'https://img.shields.io/badge/爱发电-Afdian-946ce6?style=for-the-badge&logo=github&logoColor=white'
+const SITE_URL = 'https://github.com/envOnion/AudioScript'
+const UPSTREAM_URL = 'https://github.com/niyongsheng/AudioScript'
 
 export function AboutPage() {
   const {
@@ -68,28 +67,32 @@ export function AboutPage() {
 
   const updateDescription = (() => {
     if (updatePhase === 'downloading') {
-      return `正在下载并安装 v${updateInfo?.version ?? ''}${percent == null ? '' : `（${percent}%）`}…`
+      return `Загрузка и установка v${updateInfo?.version ?? ''}${percent == null ? '' : ` (${percent}%)`}…`
     }
     if (updatePhase === 'ready') {
       const version = installedVersion ?? updateInfo?.version ?? ''
-      return capturing ? `已安装 v${version}，请先停止转写再重启` : `已安装 v${version}，重启应用后生效`
+      return capturing
+        ? `Установлена v${version}, остановите запись перед перезапуском`
+        : `Установлена v${version}, перезапустите приложение для применения`
     }
-    if (updatePhase === 'error') return `更新失败：${updateError ?? '未知错误'}`
-    if (updatePhase === 'checking') return '正在检查最新版本…'
+    if (updatePhase === 'error') return `Ошибка обновления: ${updateError ?? 'Неизвестная ошибка'}`
+    if (updatePhase === 'checking') return 'Проверка обновлений…'
     if (updateInfo?.available) {
-      return capturing ? '发现新版本，请先停止转写再更新' : `发现新版本 v${updateInfo.version}`
+      return capturing
+        ? 'Доступна новая версия. Остановите запись перед обновлением'
+        : `Доступна новая версия v${updateInfo.version}`
     }
-    if (updateInfo) return `已是最新版本（v${updateInfo.currentVersion}）`
-    return '启动时自动检查，也可手动检查'
+    if (updateInfo) return `Установлена последняя версия (v${updateInfo.currentVersion})`
+    return 'Проверяется при запуске. Можно проверить вручную'
   })()
 
   return (
-    <Page title="关于">
-      <SettingsGroup title="应用程序">
-        <SettingsRow icon="info" title="版本" control={<Mono>{info?.version ?? '—'}</Mono>} />
+    <Page title="О приложении">
+      <SettingsGroup title="Приложение">
+        <SettingsRow icon="info" title="Версия" control={<Mono>{info?.version ?? '—'}</Mono>} />
         <SettingsRow
           icon="download"
-          title="检查更新"
+          title="Проверить обновления"
           description={
             <>
               {updateDescription}
@@ -101,12 +104,12 @@ export function AboutPage() {
           control={
             updatePhase === 'downloading' ? (
               <div className="flex items-center gap-2">
-                <ProgressBar value={percent} label="更新下载进度" />
-                <Mono>{percent == null ? '下载中' : `${percent}%`}</Mono>
+                <ProgressBar value={percent} label="Загрузка обновления" />
+                <Mono>{percent == null ? 'Загрузка' : `${percent}%`}</Mono>
               </div>
             ) : updatePhase === 'ready' ? (
               <Button size="sm" variant="primary" icon="refresh" onClick={() => void restartApp()} disabled={capturing}>
-                重启
+                Перезапустить
               </Button>
             ) : updateInfo?.available ? (
               <Button
@@ -116,7 +119,7 @@ export function AboutPage() {
                 onClick={() => void installUpdate()}
                 disabled={capturing || updatePhase === 'checking'}
               >
-                下载并安装
+                Загрузить и установить
               </Button>
             ) : (
               <Button
@@ -126,14 +129,14 @@ export function AboutPage() {
                 disabled={!info || updatePhase === 'checking'}
                 pending={updatePhase === 'checking'}
               >
-                检查
+                Проверить
               </Button>
             )
           }
         />
         <SettingsRow
           icon="chip"
-          title="平台"
+          title="Платформа"
           control={
             <Mono>
               {info?.platform ?? '—'} · {info?.arch ?? '—'}
@@ -142,47 +145,58 @@ export function AboutPage() {
         />
         <SettingsRow
           icon="external"
-          title="官网"
+          title="Проект на GitHub"
           onClick={() => void openSite()}
           control={<Icon name="chevron" size={16} className="mt-0.5 text-[var(--color-ink-2)]" />}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="支持开发">
+      <SettingsGroup title="Поддержать разработку">
         <SettingsRow
           icon="heart"
-          title="赞助"
-          description="如果 AudioScript 帮到了你，欢迎在爱发电支持后续开发。"
+          title="Поддержать автора оригинала"
+          description="Поддержать автора исходного проекта AudioScript на Afdian."
           onClick={() => void openSponsorPage()}
-          control={<img src={AFDIAN_BADGE} alt="爱发电" className="h-7 w-auto" />}
+          control={<Icon name="external" size={16} className="text-[var(--color-ink-2)]" />}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="开源许可">
+      <SettingsGroup
+        title="Открытый исходный код"
+        footer="Русская версия: envOnion. Исходный проект AudioScript: niyongsheng."
+      >
         <SettingsRow
           icon="github"
           title={
             <span className="flex items-center gap-2">
-              LICENSE
+              Лицензия
               <Mono>MIT</Mono>
             </span>
           }
-          onClick={() => void openRepo()}
+          description="Исходный код русской версии: envOnion/AudioScript"
+          onClick={() => void openRepo().catch((e) => setError(formatCmdError(e)))}
+          control={<Icon name="chevron" size={16} className="mt-0.5 text-[var(--color-ink-2)]" />}
+        />
+        <SettingsRow
+          icon="github"
+          title="Исходный проект"
+          description="niyongsheng/AudioScript · MIT"
+          onClick={() => void openUrl(UPSTREAM_URL).catch((e) => setError(formatCmdError(e)))}
           control={<Icon name="chevron" size={16} className="mt-0.5 text-[var(--color-ink-2)]" />}
         />
       </SettingsGroup>
 
       <SettingsGroup
-        title="模型与许可"
+        title="Модели и лицензии"
         footer={
           licensesOpen
-            ? '本项目把 OPUS-MT 权重转换为 CTranslate2 int8，并把 SentencePiece 词表转换为 tokenizer JSON；未更改训练数据。'
+            ? 'Веса OPUS-MT преобразованы в CTranslate2 int8, словари SentencePiece — в tokenizer JSON. Обучающие данные не изменялись.'
             : undefined
         }
       >
         <SettingsRow
           icon="shield"
-          title="模型许可"
+          title="Лицензии моделей"
           onClick={() => setLicensesOpen((open) => !open)}
           control={
             <Icon
@@ -203,7 +217,7 @@ export function AboutPage() {
                   description={
                     <>
                       {m.title} · {l.license}
-                      {l.requiresAttribution && ' · 需署名'}
+                      {l.requiresAttribution && ' · Требуется указание авторства'}
                       {l.attribution && ` · ${l.attribution}`}
                     </>
                   }
@@ -215,7 +229,7 @@ export function AboutPage() {
                         icon="external"
                         onClick={() => void openUrl(l.licenseUrl as string).catch((e) => setError(formatCmdError(e)))}
                       >
-                        许可
+                        Лицензия
                       </Button>
                     ) : undefined
                   }
@@ -223,7 +237,9 @@ export function AboutPage() {
               )),
             )
           ) : (
-            <SettingsRow title={modelsFailed ? '模型许可读取失败，请到「模型」页重试' : '读取中…'} />
+            <SettingsRow
+              title={modelsFailed ? 'Не удалось загрузить лицензии. Повторите попытку в разделе «Модели»' : 'Загрузка…'}
+            />
           ))}
       </SettingsGroup>
     </Page>

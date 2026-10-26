@@ -11,7 +11,7 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法解析配置目录：{e}"))?;
+        .map_err(|e| format!("Не удалось определить каталог настроек: {e}"))?;
     Ok(dir.join(FILE_NAME))
 }
 
@@ -31,7 +31,16 @@ where
 }
 
 pub fn parse(raw: &str) -> Result<Preferences, serde_json::Error> {
-    Ok(serde_json::from_str::<Preferences>(raw)?.sanitized())
+    let mut preferences = serde_json::from_str::<Preferences>(raw)?.sanitized();
+    let asr = crate::models::catalog::asr_entry(preferences.asr_model_tier);
+    if !asr.bundled && !asr.downloadable {
+        preferences.asr_model_tier = crate::config::AsrModelTier::Builtin;
+    }
+    let mt = crate::models::catalog::mt_entry(preferences.mt_model_tier);
+    if !mt.bundled && !mt.downloadable {
+        preferences.mt_model_tier = crate::config::MtModelTier::Base;
+    }
+    Ok(preferences)
 }
 
 pub fn to_json(prefs: &Preferences) -> Result<String, serde_json::Error> {
@@ -42,7 +51,7 @@ pub fn load(app: &AppHandle) -> Preferences {
     match config_path(app) {
         Ok(path) => load_from(&path),
         Err(e) => {
-            tracing::error!("{e}，使用默认偏好");
+            tracing::error!("{e}; используются настройки по умолчанию");
             Preferences::default()
         }
     }
@@ -52,11 +61,11 @@ pub fn load_from(path: &Path) -> Preferences {
     let raw = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            tracing::info!(path = %path.display(), "尚无偏好文件，使用默认值");
+            tracing::info!(path = %path.display(), "Файл настроек отсутствует; используются значения по умолчанию");
             return Preferences::default();
         }
         Err(e) => {
-            tracing::error!(path = %path.display(), "偏好文件读取失败：{e}，使用默认值");
+            tracing::error!(path = %path.display(), "Не удалось прочитать настройки: {e}; используются значения по умолчанию");
             return Preferences::default();
         }
     };
@@ -68,14 +77,14 @@ pub fn load_from(path: &Path) -> Preferences {
                 audio_source = %p.audio_source,
                 engine = %p.translate_engine.as_str(),
                 source_lang = %p.source_lang,
-                "偏好已载入"
+                "Настройки загружены"
             );
             p
         }
         Err(e) => {
             tracing::error!(
                 path = %path.display(),
-                "偏好文件解析失败：{e}，使用默认值（原文件保留未动）"
+                "Не удалось разобрать настройки: {e}; используются значения по умолчанию, исходный файл сохранён"
             );
             Preferences::default()
         }
@@ -90,17 +99,19 @@ pub fn save_to(path: &Path, prefs: &Preferences) -> Result<(), String> {
     let dir = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
-        .ok_or_else(|| format!("{} 没有父目录，无法创建", path.display()))?;
+        .ok_or_else(|| format!("У {} отсутствует родительский каталог", path.display()))?;
 
-    std::fs::create_dir_all(dir).map_err(|e| format!("创建配置目录失败：{e}"))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|e| format!("Не удалось создать каталог настроек: {e}"))?;
 
-    let json = to_json(prefs).map_err(|e| format!("偏好序列化失败：{e}"))?;
+    let json = to_json(prefs).map_err(|e| format!("Не удалось сериализовать настройки: {e}"))?;
 
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, &json).map_err(|e| format!("写入临时偏好文件失败：{e}"))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("替换偏好文件失败：{e}"))?;
+    std::fs::write(&tmp, &json)
+        .map_err(|e| format!("Не удалось записать временный файл настроек: {e}"))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("Не удалось заменить файл настроек: {e}"))?;
 
-    tracing::debug!(path = %path.display(), "偏好已保存");
+    tracing::debug!(path = %path.display(), "Настройки сохранены");
     Ok(())
 }
 
@@ -122,8 +133,8 @@ mod tests {
 
     #[test]
     fn partial_config_keeps_known_fields() {
-        let p = parse(r#"{"sourceLang":"zh"}"#).unwrap();
-        assert_eq!(p.source_lang, "zh");
+        let p = parse(r#"{"sourceLang":"ru"}"#).unwrap();
+        assert_eq!(p.source_lang, "ru");
         assert_eq!(p.audio_source, "loopback", "未提供的字段应回落默认");
     }
 
@@ -144,7 +155,7 @@ mod tests {
             audio_source: "mix".into(),
             device_id: Some("dev-42".into()),
             translate_engine: TranslateEngine::Off,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         };
         let json = to_json(&p).unwrap();
@@ -153,7 +164,7 @@ mod tests {
 
     #[test]
     fn source_lang_derivation_survives_roundtrip() {
-        let p = parse(r#"{"sourceLang":"zh"}"#).unwrap();
+        let p = parse(r#"{"sourceLang":"ru"}"#).unwrap();
         assert_eq!(p.target_lang(), "en");
     }
 
@@ -170,7 +181,7 @@ mod tests {
             audio_source: "mix".into(),
             device_id: Some("device-7".into()),
             translate_engine: TranslateEngine::Off,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             overlay: crate::config::OverlayConfig {
                 opacity: 33,
                 font_size: 40,
@@ -197,9 +208,8 @@ mod tests {
             .into_iter()
             .collect(),
             onboarding_done: true,
-            asr_model_tier: crate::config::AsrModelTier::HighAccuracy,
-            mt_model_tier: crate::config::MtModelTier::Big,
-            zh_script: crate::config::ZhScript::Traditional,
+            asr_model_tier: crate::config::AsrModelTier::Builtin,
+            mt_model_tier: crate::config::MtModelTier::Base,
             analytics_enabled: false,
         };
 
@@ -239,7 +249,7 @@ mod tests {
             audio_source: "mic".into(),
             device_id: None,
             translate_engine: TranslateEngine::Mock,
-            source_lang: "zh".into(),
+            source_lang: "ru".into(),
             ..Default::default()
         };
 
@@ -259,7 +269,7 @@ mod tests {
 
     #[test]
     fn files_written_before_onboarding_existed_still_load() {
-        let raw = r#"{"audioSource":"mix","sourceLang":"zh","theme":"dark"}"#;
+        let raw = r#"{"audioSource":"mix","sourceLang":"ru","theme":"dark"}"#;
         let p = parse(raw).expect("缺少新字段的旧文件必须能载入");
         assert_eq!(p.audio_source, "mix");
         assert_eq!(p.theme, crate::config::Theme::Dark);
@@ -289,5 +299,17 @@ mod tests {
         );
 
         std::fs::remove_dir_all(path.parent().unwrap()).ok();
+    }
+    #[test]
+    fn legacy_language_and_unavailable_models_migrate_together() {
+        let preferences = parse(r#"{"sourceLang":"zh","zhScript":"traditional","asrModelTier":"high-accuracy","mtModelTier":"big","analyticsEnabled":true}"#).unwrap();
+        assert_eq!(preferences.source_lang, "en");
+        assert_eq!(preferences.target_lang(), "ru");
+        assert_eq!(
+            preferences.asr_model_tier,
+            crate::config::AsrModelTier::Builtin
+        );
+        assert_eq!(preferences.mt_model_tier, crate::config::MtModelTier::Base);
+        assert!(!preferences.analytics_enabled);
     }
 }

@@ -8,8 +8,7 @@ import { Page } from '@/ui/Page'
 import { SegmentList } from '@/ui/SegmentList'
 
 function exportStamp(d = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  return d.toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export function TranscribePage() {
@@ -27,7 +26,7 @@ export function TranscribePage() {
     try {
       const stamp = exportStamp()
       const path = await save({
-        defaultPath: `AudioScript-转写-${stamp.replace(/:/g, '-')}.md`,
+        defaultPath: `AudioScript-Расшифровка-${stamp.replace(/:/g, '-')}.md`,
         filters: [{ name: 'Markdown', extensions: ['md'] }],
       })
       if (!path) return
@@ -39,21 +38,23 @@ export function TranscribePage() {
   }
 
   return (
-    <Page title="转写">
+    <Page title="Расшифровка">
       <div className="flex items-center gap-2">
         <Button onClick={handleClear} disabled={capturing || segments.length === 0} size="sm">
-          清空
+          Очистить
         </Button>
         <Button icon="download" size="sm" disabled={!canExport} onClick={() => void handleExport()}>
-          导出
+          Экспорт
         </Button>
-        <span className="ml-auto font-mono text-[var(--color-ink-2)] text-[0.7rem]">{segments.length} 段</span>
+        <span className="ml-auto font-mono text-[var(--color-ink-2)] text-[0.7rem]">
+          Фрагментов: {segments.length.toLocaleString('ru-RU')}
+        </span>
       </div>
 
       <div className="max-h-[62vh] overflow-y-auto rounded-[var(--radius-panel)] border border-[var(--color-border-subtle)] bg-[var(--color-surface-0)] p-4">
         {segments.length === 0 ? (
           <p className="py-8 text-center text-[var(--color-ink-2)] text-sm">
-            {capturing ? '识别中…' : '点击左上角「开始转写」。'}
+            {capturing ? 'Распознавание…' : 'Нажмите «Начать запись» вверху слева.'}
           </p>
         ) : (
           <SegmentList segments={segments} />
@@ -61,7 +62,9 @@ export function TranscribePage() {
       </div>
 
       {!capturing && segments.length > 0 && (
-        <p className="text-[var(--color-ink-2)] text-[0.7rem]">停止转写后内容保留，直至清空或退出应用。</p>
+        <p className="text-[var(--color-ink-2)] text-[0.7rem]">
+          После остановки текст сохранится до очистки или выхода из приложения.
+        </p>
       )}
     </Page>
   )

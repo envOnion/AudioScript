@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '@/main/store'
-import { type ConfigDefaults, configDefaults, TranslateEngine, ZhScript } from '@/shared/ipc'
+import { type ConfigDefaults, configDefaults, TranslateEngine } from '@/shared/ipc'
 import {
   MAX_MAX_UTTERANCE_MS,
   MAX_TRAILING_SILENCE_MS,
@@ -15,34 +15,24 @@ import { SettingsGroup, SettingsRow } from '@/ui/Settings'
 import { Slider } from '@/ui/Slider'
 
 const ENGINE_OPTIONS = [
-  { value: TranslateEngine.LocalNmt, label: '本地离线（opus-mt）' },
-  { value: TranslateEngine.Off, label: '关闭（只看原文）' },
+  { value: TranslateEngine.LocalNmt, label: 'Локальный (OPUS-MT)' },
+  { value: TranslateEngine.Off, label: 'Выключен (только оригинал)' },
   {
     value: TranslateEngine.RemoteApi,
-    label: '在线 API',
-    unavailableReason: '未接入',
+    label: 'Онлайн API',
+    unavailableReason: 'Пока недоступен',
   },
 ]
 
-const MOCK_OPTION = { value: TranslateEngine.Mock, label: '开发用假引擎' }
+const MOCK_OPTION = { value: TranslateEngine.Mock, label: 'Тестовый движок' }
 
-const DIRECTIONS = [
-  { lang: 'en', script: ZhScript.Simplified, label: '英语 → 简体中文' },
-  { lang: 'zh', script: ZhScript.Simplified, label: '简体中文 → 英语' },
-  { lang: 'en', script: ZhScript.Traditional, label: '英语 → 繁体中文' },
-  { lang: 'zh', script: ZhScript.Traditional, label: '繁体中文 → 英语' },
+const DIRECTION_OPTIONS = [
+  { value: 'en', label: 'Английский → русский' },
+  { value: 'ru', label: 'Русский → английский' },
 ]
 
-const directionValue = (lang: string, script: ZhScript) => `${lang}:${script}`
-
-const DIRECTION_OPTIONS = DIRECTIONS.map((d) => ({
-  value: directionValue(d.lang, d.script),
-  label: d.label,
-}))
-
 export function TranslatePage() {
-  const { translateEngine, setTranslateEngine, sourceLang, zhScript, setDirection, endpoint, setEndpoint, status } =
-    useStore()
+  const { translateEngine, setTranslateEngine, sourceLang, setDirection, endpoint, setEndpoint, status } = useStore()
   const capturing = status === TaskStatus.Capturing
 
   const [defaults, setDefaults] = useState<ConfigDefaults | null>(null)
@@ -56,17 +46,17 @@ export function TranslatePage() {
   useEffect(() => setDraft(endpoint), [endpoint])
 
   return (
-    <Page title="翻译">
-      {capturing && <Alert tone="info">断句参数仅下次开始转写时生效。</Alert>}
+    <Page title="Перевод">
+      {capturing && <Alert tone="info">Параметры разбиения применятся при следующем запуске записи.</Alert>}
 
-      <SettingsGroup title="引擎">
+      <SettingsGroup title="Движок">
         <SettingsRow
           icon="translate"
-          title="翻译引擎"
-          description="本地离线运行，音频与文本不出本机。"
+          title="Движок перевода"
+          description="Работает без интернета. Звук и текст остаются на устройстве."
           control={
             <Select
-              label="翻译引擎"
+              label="Движок перевода"
               value={translateEngine}
               options={translateEngine === TranslateEngine.Mock ? [...ENGINE_OPTIONS, MOCK_OPTION] : ENGINE_OPTIONS}
               onChange={setTranslateEngine}
@@ -76,37 +66,34 @@ export function TranslatePage() {
         />
         <SettingsRow
           icon="external"
-          title="翻译方向"
-          description="支持简体/繁体；方向选错时译文会错乱，且不会报错。"
+          title="Направление перевода"
+          description="Выберите язык речи. Он используется и для распознавания без перевода."
           control={
             <Select
-              label="翻译方向"
-              value={directionValue(sourceLang, zhScript)}
+              label="Направление перевода"
+              value={sourceLang}
               options={DIRECTION_OPTIONS}
-              onChange={(v) => {
-                const d = DIRECTIONS.find((d) => directionValue(d.lang, d.script) === v)
-                if (d) setDirection(d.lang, d.script)
-              }}
-              disabled={capturing || translateEngine === TranslateEngine.Off}
+              onChange={setDirection}
+              disabled={capturing}
             />
           }
         />
       </SettingsGroup>
 
-      <SettingsGroup title="断句" footer="段落越长，译文出现越晚。">
+      <SettingsGroup title="Разбиение на фразы" footer="Чем длиннее фраза, тем позже появляется перевод.">
         <SettingsRow
           icon="waveform"
-          title="说完多久算一句"
-          description="调小可让译文更早出现，但句子更碎。"
+          title="Пауза в конце фразы"
+          description="Меньшее значение ускоряет перевод, но делит речь на более короткие фразы."
           control={
             <div className="w-64">
               <Slider
-                label="尾部静音"
+                label="Пауза в конце"
                 value={draft.trailingSilenceMs}
                 min={MIN_TRAILING_SILENCE_MS}
                 max={MAX_TRAILING_SILENCE_MS}
                 step={50}
-                format={(v) => `${v} ms`}
+                format={(v) => `${v.toLocaleString('ru-RU')} мс`}
                 onChange={(v) => setDraft((d) => ({ ...d, trailingSilenceMs: v }))}
                 onCommit={(v) => void setEndpoint({ ...draft, trailingSilenceMs: v })}
                 defaultValue={defaults?.endpoint.trailingSilenceMs}
@@ -117,17 +104,17 @@ export function TranslatePage() {
         />
         <SettingsRow
           icon="alert"
-          title="最长一句"
-          description="超过此长度强制断句；设得比上一项短会使上一项失效。"
+          title="Максимальная длина фразы"
+          description="После этого времени фраза завершается принудительно. Значение должно быть больше паузы в конце."
           control={
             <div className="w-64">
               <Slider
-                label="最长句"
+                label="Максимальная длина фразы"
                 value={draft.maxUtteranceMs}
                 min={MIN_MAX_UTTERANCE_MS}
                 max={MAX_MAX_UTTERANCE_MS}
                 step={500}
-                format={(v) => `${(v / 1000).toFixed(1)} s`}
+                format={(v) => `${(v / 1000).toLocaleString('ru-RU', { minimumFractionDigits: 1 })} с`}
                 onChange={(v) => setDraft((d) => ({ ...d, maxUtteranceMs: v }))}
                 onCommit={(v) => void setEndpoint({ ...draft, maxUtteranceMs: v })}
                 defaultValue={defaults?.endpoint.maxUtteranceMs}
@@ -138,7 +125,7 @@ export function TranslatePage() {
         />
         <SettingsRow
           icon="chip"
-          title="预设"
+          title="Режим"
           control={
             <div className="flex gap-1.5">
               <button
@@ -147,7 +134,7 @@ export function TranslatePage() {
                 onClick={() => defaults && void setEndpoint(defaults.endpointProfiles.interpretation)}
                 className="rounded-[var(--radius-ctl)] border border-[var(--color-border-subtle)] px-2 py-1 text-[var(--color-ink-1)] text-xs transition hover:bg-[var(--color-surface-2)] disabled:opacity-40"
               >
-                同传
+                Синхронный перевод
               </button>
               <button
                 type="button"
@@ -155,7 +142,7 @@ export function TranslatePage() {
                 onClick={() => defaults && void setEndpoint(defaults.endpointProfiles.dictation)}
                 className="rounded-[var(--radius-ctl)] border border-[var(--color-border-subtle)] px-2 py-1 text-[var(--color-ink-1)] text-xs transition hover:bg-[var(--color-surface-2)] disabled:opacity-40"
               >
-                听写
+                Диктовка
               </button>
             </div>
           }

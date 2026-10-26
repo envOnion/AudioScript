@@ -51,12 +51,12 @@ impl Translator for MockTranslator {
         self.seen += 1;
         if self.fail_every > 0 && self.seen.is_multiple_of(self.fail_every) {
             return Err(TranslateError::Internal(format!(
-                "（第 {} 句，模拟失败）",
+                "(Имитирована ошибка во фрагменте {})",
                 self.seen
             )));
         }
 
-        Ok(format!("⟦译⟧{text}"))
+        Ok(format!("⟦Тестовый перевод⟧{text}"))
     }
 
     fn shutdown(&mut self) {
@@ -82,7 +82,10 @@ mod tests {
         let mut t = MockTranslator::default();
         t.init(&TranslateConfig::default()).unwrap();
         let out = t.translate("hello world").unwrap();
-        assert!(out.starts_with("⟦译⟧"), "假译文应有明显标记：{out}");
+        assert!(
+            out.starts_with("⟦Тестовый перевод⟧"),
+            "假译文应有明显标记：{out}"
+        );
         assert!(out.contains("hello world"), "应保留原文以便比对");
     }
 

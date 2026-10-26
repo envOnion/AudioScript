@@ -132,46 +132,46 @@ function Alerts({ page, onOpenPermissions, onOpenAbout }: AlertsProps) {
   return (
     <>
       {updateInfo?.available && page !== 'about' && updatePhase !== 'downloading' && updatePhase !== 'ready' && (
-        <Alert tone="info" title={`发现新版本 v${updateInfo.version ?? ''}`}>
+        <Alert tone="info" title={`Доступна новая версия v${updateInfo.version ?? ''}`}>
           <Button size="sm" onClick={onOpenAbout}>
-            去「关于」页更新
+            Открыть «О приложении»
           </Button>
         </Alert>
       )}
 
       {error && (
-        <Alert tone="error" title="操作失败">
+        <Alert tone="error" title="Не удалось выполнить действие">
           <p className="font-mono">{error}</p>
           <button type="button" onClick={() => setError(null)} className="mt-1 underline opacity-70 hover:opacity-100">
-            关闭
+            Закрыть
           </button>
         </Alert>
       )}
 
       {permissionError && (
-        <Alert tone="warn" title="缺少系统权限">
+        <Alert tone="warn" title="Требуются системные разрешения">
           <p>{permissionError.message}</p>
           <div className="mt-1.5 flex gap-1.5">
             <Button size="sm" onClick={onOpenPermissions}>
-              去「权限」页处理
+              Открыть «Разрешения»
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setPermissionError(null)}>
-              关闭
+              Закрыть
             </Button>
           </div>
         </Alert>
       )}
 
       {hotkeyProblems.length > 0 && (
-        <Alert tone="warn" title={`${hotkeyProblems.length} 个全局热键注册失败`}>
-          {hotkeyProblems.map((h) => `${h.accelerator} ${h.label}`).join('、')}
-          。悬浮窗将无法用热键操作，请在「悬浮窗」页重新绑定。
+        <Alert tone="warn" title={`${hotkeyProblems.length} горячих клавиш не удалось назначить`}>
+          {hotkeyProblems.map((h) => `${h.accelerator} ${h.label}`).join(', ')}. Назначьте сочетания заново в разделе
+          «Окно субтитров».
         </Alert>
       )}
 
       {audio?.silent && audio.segments === 0 && status === TaskStatus.Capturing && (
-        <Alert tone="warn" title="收不到声音（电平 ≈ 0）">
-          到「音频」页查看排查步骤。
+        <Alert tone="warn" title="Нет звука (уровень ≈ 0)">
+          Инструкции по проверке находятся в разделе «Аудио».
         </Alert>
       )}
     </>
