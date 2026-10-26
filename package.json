@@ -1,7 +1,7 @@
 {
   "name": "audioscript",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "packageManager": "bun@1.4.4",
   "description": "Офлайн-субтитры и потоковый перевод английский ↔ русский",

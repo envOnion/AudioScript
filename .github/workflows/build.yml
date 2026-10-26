@@ -93,8 +93,9 @@ jobs:
       - name: Linux build dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libasound2-dev libssl-dev build-essential libxdo-dev libpipewire-0.3-dev cmake ninja-build
+          sudo python3 -c 'from pathlib import Path; paths = [Path("/etc/apt/sources.list"), *Path("/etc/apt/sources.list.d").glob("*.sources")]; [p.write_text(p.read_text().replace("http://azure.archive.ubuntu.com/ubuntu", "https://archive.ubuntu.com/ubuntu")) for p in paths if p.is_file()]'
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libasound2-dev libssl-dev build-essential libxdo-dev libpipewire-0.3-dev cmake ninja-build
           echo 'CXXFLAGS=-D_GLIBCXX_USE_CXX11_ABI=0' >> "$GITHUB_ENV"
       - name: Windows static CRT
         if: runner.os == 'Windows'
@@ -112,6 +113,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
           key: ru-v1-${{ matrix.target }}-cxx-abi-0
       - run: bun install --frozen-lockfile --ignore-scripts
       - uses: actions/download-artifact@v4
@@ -125,9 +127,10 @@ jobs:
       - name: Validate and test
         run: |
           bun run typecheck
+          bun run build
           bun run verify:models --bundled
-          cargo test --manifest-path src-tauri/Cargo.toml --locked
-          cargo test --manifest-path src-tauri/Cargo.toml --locked bundled_ -- --ignored --nocapture --test-threads=1
+          cargo test --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }} --locked
+          cargo test --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }} --locked bundled_ -- --ignored --nocapture --test-threads=1
       - name: Build signed update artifacts and installers
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
