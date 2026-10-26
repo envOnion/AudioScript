@@ -130,6 +130,7 @@ jobs:
           name: asr-canary
           path: .cache/asr-canary
       - name: Validate and test
+        shell: bash
         run: |
           bun run typecheck
           bun run build

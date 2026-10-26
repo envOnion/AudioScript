@@ -103,16 +103,21 @@ pub fn pretty(accelerator: &str) -> String {
     #[cfg(not(target_os = "macos"))]
     let (cmd, ctrl, alt, shift) = ("Ctrl", "Ctrl", "Alt", "Shift");
 
-    accelerator
-        .split('+')
-        .map(|part| match part.trim() {
-            "CmdOrControl" | "Cmd" | "Command" | "Super" | "Meta" => cmd.to_owned(),
-            "Control" | "Ctrl" => ctrl.to_owned(),
-            "Alt" | "Option" => alt.to_owned(),
-            "Shift" => shift.to_owned(),
-            other => other.strip_prefix("Key").unwrap_or(other).to_owned(),
-        })
-        .collect()
+    let parts = accelerator.split('+').map(|part| match part.trim() {
+        "CmdOrControl" | "Cmd" | "Command" | "Super" | "Meta" => cmd.to_owned(),
+        "Control" | "Ctrl" => ctrl.to_owned(),
+        "Alt" | "Option" => alt.to_owned(),
+        "Shift" => shift.to_owned(),
+        other => other.strip_prefix("Key").unwrap_or(other).to_owned(),
+    });
+    #[cfg(target_os = "macos")]
+    {
+        parts.collect()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        parts.collect::<Vec<_>>().join("+")
+    }
 }
 
 fn accelerator_from(saved: &std::collections::HashMap<String, String>, b: &Binding) -> String {
