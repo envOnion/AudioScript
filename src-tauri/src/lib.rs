@@ -5,6 +5,7 @@ pub mod config;
 pub mod lifecycle;
 pub mod log;
 pub mod models;
+mod native_menu;
 pub mod overlay;
 pub mod paths;
 pub mod permission;
@@ -53,7 +54,11 @@ fn spawn_main_thread_watchdog(app: &AppHandle) {
                 let gap = now.saturating_sub(MAIN_TICK_MS.load(Ordering::Relaxed));
                 if gap >= 5000 && now.saturating_sub(last_warn) >= 10_000 {
                     last_warn = now;
-                    tracing::warn!(gap_ms = gap, "Главный поток не обрабатывал задачи более {} мс", gap);
+                    tracing::warn!(
+                        gap_ms = gap,
+                        "Главный поток не обрабатывал задачи более {} мс",
+                        gap
+                    );
                 }
             }
         });
@@ -104,6 +109,10 @@ pub fn run() {
             let handle = app.handle().clone();
 
             handle.manage(log::LogDir(log::init(&handle)));
+
+            if let Err(e) = native_menu::init(&handle) {
+                tracing::error!("Не удалось инициализировать меню приложения: {e}");
+            }
 
             if let Err(e) = session::init_emitter(&handle) {
                 tracing::error!("{e}");

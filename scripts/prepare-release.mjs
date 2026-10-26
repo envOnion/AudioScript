@@ -14,6 +14,12 @@ const targets = {
   'darwin-x86_64': /_x86_64\.app\.tar\.gz$/,
   'windows-x86_64': /-setup\.exe$/,
   'linux-x86_64': /\.AppImage$/,
+  'darwin-aarch64-app': /_aarch64\.app\.tar\.gz$/,
+  'darwin-x86_64-app': /_x86_64\.app\.tar\.gz$/,
+  'windows-x86_64-nsis': /-setup\.exe$/,
+  'windows-x86_64-msi': /\.msi$/,
+  'linux-x86_64-appimage': /\.AppImage$/,
+  'linux-x86_64-deb': /\.deb$/,
 }
 for (const pattern of [/aarch64\.dmg$/, /x64\.dmg$/, /\.msi$/, /\.deb$/]) {
   if (!files.some((f) => pattern.test(f))) throw new Error(`Нет обязательного установщика: ${pattern}`)
@@ -33,6 +39,7 @@ for (const [target, pattern] of Object.entries(targets)) {
 if (Object.keys(platforms).length === Object.keys(targets).length) writeFileSync(join(dir, 'latest.json'), `${JSON.stringify({ version, notes: 'Русская версия AudioScript: офлайн-перевод английский ↔ русский.', pub_date: new Date().toISOString(), platforms }, null, 2)}\n`)
 const sums = []
 for (const file of readdirSync(dir).sort()) {
+  if (file === 'SHA256SUMS.txt') continue
   const hash = createHash('sha256')
   for await (const chunk of createReadStream(join(dir, file))) hash.update(chunk)
   sums.push(`${hash.digest('hex')}  ${file}`)

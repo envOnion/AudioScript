@@ -35,6 +35,7 @@ jobs:
           key: ru-models-v1-${{ hashFiles('scripts/fetch-model.mjs', 'scripts/fetch-mt-model.mjs', 'src-tauri/assets/model-catalog.json') }}
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run typecheck
+      - run: node --test scripts/release-assets.test.mjs
       - run: bunx biome check src/
       - run: bun run fetch:model
       - run: bun run fetch:mt
