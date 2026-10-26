@@ -110,7 +110,15 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
             &help_menu,
         ],
     )?;
+    #[cfg(target_os = "macos")]
     app.set_menu(menu)?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("main") {
+            window.set_menu(menu)?;
+        }
+    }
     app.on_menu_event(|app, event| match event.id().as_ref() {
         QUIT_ID => crate::lifecycle::quit_app(app),
         REPO_ID => {

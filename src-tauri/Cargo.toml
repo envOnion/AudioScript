@@ -106,11 +106,11 @@ objc2-foundation = "0.3"
 block2 = "0.6"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-# ct2rs README 给 Windows 与 Linux(non-ARM) 的推荐 BLAS 都是 mkl。
-# ⚠️ 这条路径尚未在真机验证——CI 只跑 cargo check，见 .github/workflows/build.yml 的 check-* job。
+# Ruy обеспечивает float/int8 GEMM без загрузки платформенных библиотек Intel MKL.
+# Реальные ASR → MT canary выполняются в CI на Windows и Linux.
 ct2rs = { version = "0.10", default-features = false, features = [
     "tokenizers",
-    "mkl",
+    "ruy",
 ] }
 
 [target.'cfg(unix)'.dependencies]
