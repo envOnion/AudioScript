@@ -115,6 +115,11 @@ jobs:
           workspaces: src-tauri
           cache-on-failure: true
           key: ru-v1-${{ matrix.target }}-cxx-abi-0
+      - name: Refresh sherpa native libraries after Rust cache restore
+        shell: bash
+        run: |
+          cargo clean --manifest-path src-tauri/Cargo.toml -p sherpa-onnx-sys --release --target ${{ matrix.target }}
+          node -e "require('node:fs').rmSync('src-tauri/target/sherpa-onnx-prebuilt', {recursive:true, force:true})"
       - run: bun install --frozen-lockfile --ignore-scripts
       - uses: actions/download-artifact@v4
         with:
